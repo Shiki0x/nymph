@@ -6,11 +6,13 @@ from datetime import datetime, date
 app = FastAPI()
 
 # -----------------------------
-# CORS CONFIGURATION (dev-friendly)
+# CORS (dev settings)
 # -----------------------------
+# This allows your frontend (http.server on port 5500) to call your backend (uvicorn on 8000).
+# In production you would lock allow_origins down to your real domain(s).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production you'll lock this to your real domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -21,29 +23,31 @@ DB_FILE = "nymph.db"
 
 def init_db():
     """
-    Initializes the database schema.
-    We create tables if they do not exist.
+    Create tables if they don't exist.
+
+    IMPORTANT:
+    SQLite will NOT automatically add new columns to existing tables.
+    If you changed schema and get 500 errors, delete nymph.db during early dev.
     """
     with sqlite3.connect(DB_FILE) as conn:
-        # Users table (identity only for now; auth comes later)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 username TEXT UNIQUE NOT NULL,
+                display_name TEXT,
+                bio TEXT,
                 created_at TEXT NOT NULL
             )
         """)
 
-        # Habit logs table
-        # NEW: category + notes are added as optional columns
         conn.execute("""
             CREATE TABLE IF NOT EXISTS habit_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 habit TEXT NOT NULL,
                 completed INTEGER NOT NULL,
-                category TEXT,        -- optional (can be NULL)
-                notes TEXT,           -- optional (can be NULL)
+                category TEXT,
+                notes TEXT,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
@@ -58,14 +62,13 @@ def on_startup():
 
 
 # -----------------------------
-# USER ENDPOINTS
+# USERS
 # -----------------------------
 
 @app.post("/users")
 def create_user(username: str):
     """
-    Create a user (no passwords/auth yet).
-    Returns an id that we can attach habits to.
+    Create a user (no auth yet).
     """
     created_at = datetime.utcnow().isoformat()
 
@@ -83,8 +86,23 @@ def create_user(username: str):
     return {"id": user_id, "username": username, "created_at": created_at}
 
 
+@app.patch("/users/profile")
+def update_profile(user_id: int, display_name: str | None = None, bio: str | None = None):
+    """
+    Update a user's public profile fields.
+    """
+    with sqlite3.connect(DB_FILE) as conn:
+        if display_name is not None:
+            conn.execute("UPDATE users SET display_name = ? WHERE id = ?", (display_name, user_id))
+        if bio is not None:
+            conn.execute("UPDATE users SET bio = ? WHERE id = ?", (bio, user_id))
+        conn.commit()
+
+    return {"message": "Profile updated", "user_id": user_id, "display_name": display_name, "bio": bio}
+
+
 # -----------------------------
-# HABIT ENDPOINTS
+# HABITS
 # -----------------------------
 
 @app.post("/log-habit")
@@ -97,10 +115,6 @@ def log_habit(
 ):
     """
     Log a habit for a user.
-
-    NEW:
-    - category: optional label (ex: "fitness", "study")
-    - notes: optional text for context (ex: "leg day", "read 20 pages")
     """
     created_at = datetime.utcnow().isoformat()
     completed_int = 1 if completed else 0
@@ -115,23 +129,13 @@ def log_habit(
         )
         conn.commit()
 
-    return {
-        "message": "Saved!",
-        "entry": {
-            "user_id": user_id,
-            "habit": habit,
-            "completed": completed,
-            "category": category,
-            "notes": notes,
-            "created_at": created_at
-        }
-    }
+    return {"message": "Saved!"}
 
 
 @app.get("/habits")
 def get_habits(user_id: int):
     """
-    Get all habit logs for a user (most recent first).
+    Return all habit logs for a user (newest first).
     """
     with sqlite3.connect(DB_FILE) as conn:
         cursor = conn.execute(
@@ -157,17 +161,21 @@ def get_habits(user_id: int):
 
     return results
 
+
+# -----------------------------
+# STREAKS
+# -----------------------------
+
 @app.get("/streaks")
 def get_streaks(user_id: int):
     """
-    Calculate current daily streak for each habit for a user.
+    Current daily streak per habit.
 
-    Rule:
-    - Count consecutive days ending today (or yesterday if not completed today)
-    - Only days where completed=True count
-    - Multiple logs in one day count as one day
+    Rules:
+    - Only completed=True counts
+    - Multiple completions in the same day count as ONE day
+    - Count consecutive days backwards (today, or yesterday if not done today)
     """
-
     with sqlite3.connect(DB_FILE) as conn:
         cursor = conn.execute(
             """
@@ -180,44 +188,97 @@ def get_streaks(user_id: int):
         )
         rows = cursor.fetchall()
 
-    # Step 1: Build a map of habit -> set of completion dates
-    # We only care about days where completed=True
-    habit_days = {}
+    # Build: habit -> set of dates where completed=True
+    habit_days: dict[str, set[date]] = {}
 
     for habit, completed_int, created_at in rows:
         if not bool(completed_int):
             continue
 
-        # created_at is stored as ISO string; parse date portion
-        # Example: "2025-12-18T12:34:56.123456"
+        # created_at is ISO string, get YYYY-MM-DD part
         day_str = created_at.split("T")[0]
-        day = date.fromisoformat(day_str)
+        d = date.fromisoformat(day_str)
 
-        habit_days.setdefault(habit, set()).add(day)
+        habit_days.setdefault(habit, set()).add(d)
 
-    # Step 2: For each habit, count consecutive days backward
     today = date.today()
     results = []
 
     for habit, days_set in habit_days.items():
         streak = 0
 
-        # If habit done today, start counting from today.
-        # If not, we allow streak to start from yesterday (common habit app behavior).
-        if today in days_set:
-            cursor_day = today
-        else:
-            cursor_day = today.replace(day=today.day)  # no-op, for clarity
-            cursor_day = today.fromordinal(today.toordinal() - 1)  # yesterday
+        # Start from today if completed today, otherwise from yesterday
+        cursor_day = today if today in days_set else date.fromordinal(today.toordinal() - 1)
 
-        # Count backward until we hit a missing day
         while cursor_day in days_set:
             streak += 1
-            cursor_day = cursor_day.fromordinal(cursor_day.toordinal() - 1)
+            cursor_day = date.fromordinal(cursor_day.toordinal() - 1)
 
         results.append({"habit": habit, "streak": streak})
 
-    # Optional: include habits with 0 streak if they exist but no completions
-    # (We'll add that later when we normalize habits into their own table.)
-
     return results
+
+
+# -----------------------------
+# PUBLIC PROFILES
+# -----------------------------
+
+@app.get("/u/{username}")
+def public_profile(username: str):
+    """
+    Public profile JSON (shareable).
+    """
+    with sqlite3.connect(DB_FILE) as conn:
+        user_cur = conn.execute(
+            """
+            SELECT id, username, display_name, bio, created_at
+            FROM users
+            WHERE username = ?
+            """,
+            (username,)
+        )
+        user = user_cur.fetchone()
+
+        if not user:
+            return {"error": "User not found"}
+
+        user_id, uname, display_name, bio, created_at = user
+
+        total_logs = conn.execute(
+            "SELECT COUNT(*) FROM habit_logs WHERE user_id = ?",
+            (user_id,)
+        ).fetchone()[0]
+
+        completed_logs = conn.execute(
+            "SELECT COUNT(*) FROM habit_logs WHERE user_id = ? AND completed = 1",
+            (user_id,)
+        ).fetchone()[0]
+
+    return {
+        "id": user_id,
+        "username": uname,
+        "display_name": display_name or uname,
+        "bio": bio or "",
+        "created_at": created_at,
+        "stats": {
+            "total_logs": total_logs,
+            "completed_logs": completed_logs
+        }
+    }
+
+
+@app.get("/u/{username}/summary")
+def public_profile_summary(username: str):
+    """
+    Smaller profile payload for embedding on a profile page.
+    """
+    profile = public_profile(username)
+    if "error" in profile:
+        return profile
+
+    return {
+        "username": profile["username"],
+        "display_name": profile["display_name"],
+        "bio": profile["bio"],
+        "stats": profile["stats"]
+    }

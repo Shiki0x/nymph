@@ -2,88 +2,275 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>NYMPH – Habit Tracker</title>
+  <title>NYMPH – Dev UI</title>
+
   <style>
     body {
       font-family: Arial, sans-serif;
       background: #111;
       color: #eee;
-      max-width: 600px;
+      max-width: 780px;
       margin: auto;
       padding: 20px;
     }
 
+    .muted { opacity: 0.7; font-size: 13px; }
+
+    .card {
+      background: #1b1b1b;
+      padding: 14px;
+      border-radius: 10px;
+      margin: 12px 0;
+      border: 1px solid #2a2a2a;
+    }
+
+    h1, h2 { margin: 0 0 10px 0; }
+
+    label { display: block; margin-top: 10px; }
+
     input, textarea, button {
       width: 100%;
       margin: 6px 0;
-      padding: 8px;
+      padding: 10px;
       font-size: 14px;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #0f0f0f;
+      color: #eee;
+      box-sizing: border-box;
     }
+
+    textarea { min-height: 70px; resize: vertical; }
 
     button {
       cursor: pointer;
       background: #4caf50;
       border: none;
-      color: black;
+      color: #111;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    .smallBtn {
+      background: #2f80ed;
+      color: #111;
       font-weight: bold;
     }
 
-    ul {
-      list-style: none;
-      padding: 0;
+    .row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
     }
+
+    .row > div { flex: 1; }
+
+    .checkboxRow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    ul { list-style: none; padding: 0; margin: 0; }
 
     li {
       background: #222;
-      margin: 6px 0;
-      padding: 10px;
+      margin: 8px 0;
+      padding: 12px;
+      border-radius: 10px;
+      line-height: 1.35;
     }
   </style>
 </head>
 
 <body>
   <h1>NYMPH</h1>
-  <p>Simple habit logger (dev UI)</p>
+  <p class="muted">Dev UI: Users + Profiles + Habits + Metadata + Streaks + Share Link</p>
 
-  <!-- USER ID -->
-  <label>User ID</label>
-  <input id="userIdInput" type="number" value="1" min="1" />
+  <!-- CREATE USER -->
+  <div class="card">
+    <h2>Create User</h2>
 
-  <!-- HABIT -->
-  <label>Habit</label>
-  <input id="habitInput" placeholder="gym, study, meditate..." />
+    <label>Username</label>
+    <input id="usernameInput" placeholder="shiki" />
 
-  <!-- CATEGORY -->
-  <label>Category</label>
-  <input id="categoryInput" placeholder="fitness, study, mental..." />
+    <button class="smallBtn" onclick="createUser()">Create User</button>
 
-  <!-- NOTES -->
-  <label>Notes</label>
-  <textarea id="notesInput" placeholder="optional notes..."></textarea>
+    <p class="muted">
+      Tip: After creating a user, the UI auto-fills the User ID below.
+    </p>
+  </div>
 
-  <!-- COMPLETED -->
-  <label>
-    <input id="completedInput" type="checkbox" />
-    Completed
-  </label>
+  <!-- UPDATE PROFILE -->
+  <div class="card">
+    <h2>Update Profile</h2>
 
-  <button onclick="logHabit()">Log Habit</button>
+    <label>User ID</label>
+    <input id="profileUserIdInput" type="number" value="1" min="1" />
 
-  <h2>Habits</h2>
-  <ul id="habitList"></ul>
+    <label>Display Name</label>
+    <input id="displayNameInput" placeholder="Shiki.0" />
+
+    <label>Bio</label>
+    <textarea id="bioInput" placeholder="Building NYMPH. Daily habits + profile hub."></textarea>
+
+    <button class="smallBtn" onclick="updateProfile()">Save Profile</button>
+
+    <p class="muted" id="profileStatus"></p>
+  </div>
+
+  <!-- SHARE PROFILE -->
+  <div class="card">
+    <h2>Share Profile</h2>
+
+    <label>Username</label>
+    <input id="shareUsernameInput" placeholder="shiki" />
+
+    <button class="smallBtn" onclick="copyShareLink()">Copy Share Link</button>
+
+    <p class="muted" id="shareLinkPreview"></p>
+  </div>
+
+  <!-- LOG HABIT -->
+  <div class="card">
+    <h2>Log Habit</h2>
+
+    <label>User ID</label>
+    <input id="userIdInput" type="number" value="1" min="1" />
+
+    <label>Habit</label>
+    <input id="habitInput" placeholder="gym, study, meditate..." />
+
+    <label>Category</label>
+    <input id="categoryInput" placeholder="fitness, study, mental..." />
+
+    <label>Notes</label>
+    <textarea id="notesInput" placeholder="optional notes..."></textarea>
+
+    <div class="checkboxRow">
+      <input id="completedInput" type="checkbox" />
+      <label for="completedInput" style="margin:0;">Completed</label>
+    </div>
+
+    <button onclick="logHabit()">Log Habit</button>
+  </div>
+
+  <!-- HABITS LIST -->
+  <div class="card">
+    <div class="row">
+      <div>
+        <h2>Habits</h2>
+        <p class="muted">Shows habits + streak per habit</p>
+      </div>
+      <div style="text-align:right;">
+        <button class="smallBtn" onclick="refreshHabits()">Refresh</button>
+      </div>
+    </div>
+
+    <ul id="habitList"></ul>
+  </div>
 
   <script>
-    // Backend base URL
+    // Backend base URL (FastAPI)
     const API_BASE = "http://127.0.0.1:8000";
 
-    // Grab elements once
+    // Elements (user)
+    const usernameInput = document.getElementById("usernameInput");
     const userIdInput = document.getElementById("userIdInput");
+
+    // Elements (profile)
+    const profileUserIdInput = document.getElementById("profileUserIdInput");
+    const displayNameInput = document.getElementById("displayNameInput");
+    const bioInput = document.getElementById("bioInput");
+    const profileStatus = document.getElementById("profileStatus");
+
+    // Elements (share)
+    const shareUsernameInput = document.getElementById("shareUsernameInput");
+    const shareLinkPreview = document.getElementById("shareLinkPreview");
+
+    // Elements (habits)
     const habitInput = document.getElementById("habitInput");
     const categoryInput = document.getElementById("categoryInput");
     const notesInput = document.getElementById("notesInput");
     const completedInput = document.getElementById("completedInput");
     const habitList = document.getElementById("habitList");
 
+    // -----------------------------
+    // Create User
+    // -----------------------------
+    async function createUser() {
+      const username = usernameInput.value.trim();
+      if (!username) {
+        alert("Username is required");
+        return;
+      }
+
+      const url = new URL(`${API_BASE}/users`);
+      url.searchParams.set("username", username);
+
+      const res = await fetch(url.toString(), { method: "POST" });
+      const data = await res.json();
+
+      if (data.error) {
+        alert(data.error);
+        return;
+      }
+
+      alert(`User created: @${data.username} (id=${data.id})`);
+
+      // Auto-fill IDs across UI for convenience
+      userIdInput.value = data.id;
+      profileUserIdInput.value = data.id;
+
+      // Helpful default for share box
+      shareUsernameInput.value = data.username;
+
+      usernameInput.value = "";
+      refreshHabits();
+    }
+
+    // -----------------------------
+    // Update Profile
+    // -----------------------------
+    async function updateProfile() {
+      const userId = profileUserIdInput.value;
+      const displayName = displayNameInput.value.trim();
+      const bio = bioInput.value.trim();
+
+      const url = new URL(`${API_BASE}/users/profile`);
+      url.searchParams.set("user_id", userId);
+
+      // Only send fields if user actually typed something
+      if (displayName) url.searchParams.set("display_name", displayName);
+      if (bio) url.searchParams.set("bio", bio);
+
+      const res = await fetch(url.toString(), { method: "PATCH" });
+      const data = await res.json();
+
+      profileStatus.textContent = data.message ? "Profile saved ✅" : "Profile update failed";
+      setTimeout(() => (profileStatus.textContent = ""), 3000);
+    }
+
+    // -----------------------------
+    // Share Link
+    // -----------------------------
+    function copyShareLink() {
+      const username = shareUsernameInput.value.trim();
+      if (!username) {
+        alert("Enter a username to share");
+        return;
+      }
+
+      const link = `http://127.0.0.1:5500/profile.html?username=${encodeURIComponent(username)}`;
+      navigator.clipboard.writeText(link);
+
+      shareLinkPreview.textContent = `Copied: ${link}`;
+    }
+
+    // -----------------------------
+    // Log Habit
+    // -----------------------------
     async function logHabit() {
       const userId = userIdInput.value;
       const habit = habitInput.value.trim();
@@ -96,7 +283,6 @@
         return;
       }
 
-      // Build URL with query params (matches FastAPI)
       const url = new URL(`${API_BASE}/log-habit`);
       url.searchParams.set("user_id", userId);
       url.searchParams.set("habit", habit);
@@ -105,7 +291,7 @@
       if (category) url.searchParams.set("category", category);
       if (notes) url.searchParams.set("notes", notes);
 
-      await fetch(url, { method: "POST" });
+      await fetch(url.toString(), { method: "POST" });
 
       // Clear inputs
       habitInput.value = "";
@@ -116,43 +302,51 @@
       refreshHabits();
     }
 
+    // -----------------------------
+    // Refresh Habits + Streaks
+    // -----------------------------
     async function refreshHabits() {
-  const userId = userIdInput.value;
+      const userId = userIdInput.value;
 
-  // Fetch habits and streaks at the same time
-  const [habitsRes, streaksRes] = await Promise.all([
-    fetch(`${API_BASE}/habits?user_id=${userId}`),
-    fetch(`${API_BASE}/streaks?user_id=${userId}`)
-  ]);
+      const [habitsRes, streaksRes] = await Promise.all([
+        fetch(`${API_BASE}/habits?user_id=${userId}`),
+        fetch(`${API_BASE}/streaks?user_id=${userId}`)
+      ]);
 
-  const habits = await habitsRes.json();
-  const streaks = await streaksRes.json();
+      const habits = await habitsRes.json();
+      const streaks = await streaksRes.json();
 
-  // Build a lookup map: habit name -> streak count
-  const streakMap = {};
-  streaks.forEach(s => {
-    streakMap[s.habit] = s.streak;
-  });
+      // Build habit->streak map
+      const streakMap = {};
+      streaks.forEach(s => {
+        streakMap[s.habit] = s.streak;
+      });
 
-  habitList.innerHTML = "";
+      habitList.innerHTML = "";
 
-  habits.forEach(item => {
-    const li = document.createElement("li");
+      if (!Array.isArray(habits) || habits.length === 0) {
+        const li = document.createElement("li");
+        li.textContent = "No habits yet. Log your first one above.";
+        habitList.appendChild(li);
+        return;
+      }
 
-    const category = item.category ? ` (${item.category})` : "";
-    const notes = item.notes ? ` — ${item.notes}` : "";
-    const status = item.completed ? "✔️" : "❌";
+      habits.forEach(item => {
+        const li = document.createElement("li");
 
-    // Default streak to 0 if not found
-    const streak = streakMap[item.habit] ?? 0;
-    const streakText = ` 🔥 Streak: ${streak}`;
+        const category = item.category ? ` (${item.category})` : "";
+        const notes = item.notes ? ` — ${item.notes}` : "";
+        const status = item.completed ? "✔️" : "❌";
 
-    li.textContent = `${status} ${item.habit}${category}${notes}${streakText}`;
-    habitList.appendChild(li);
-  });
-}
+        // Default streak to 0 if not found
+        const streak = streakMap[item.habit] ?? 0;
 
-    // Load habits on page load
+        li.textContent = `${status} ${item.habit}${category}${notes}   🔥 Streak: ${streak}`;
+        habitList.appendChild(li);
+      });
+    }
+
+    // Load on page start
     refreshHabits();
   </script>
 </body>

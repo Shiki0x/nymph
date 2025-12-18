@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>NYMPH Profile</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#111; color:#eee; max-width:700px; margin:auto; padding:20px; }
+    .card { background:#1b1b1b; padding:14px; border-radius:10px; margin:12px 0; }
+    .muted { opacity:0.7; }
+  </style>
+</head>
+<body>
+  <h1 id="name">NYMPH</h1>
+  <p id="bio" class="muted"></p>
+
+  <div class="card">
+    <h2>Stats</h2>
+    <p id="stats"></p>
+  </div>
+
+  <div class="card">
+  <h2>Recent Habits</h2>
+  <ul id="habitList"></ul>
+</div>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8000";
+
+    // Read ?username=shiki from the URL
+    const params = new URLSearchParams(window.location.search);
+    const username = params.get("username");
+
+    async function loadProfile() {
+      if (!username) {
+        document.getElementById("name").textContent = "Missing ?username=";
+        document.getElementById("bio").textContent = "Example: profile.html?username=shiki";
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/u/${username}/summary`);
+      const data = await res.json();
+
+      if (data.error) {
+        document.getElementById("name").textContent = "User not found";
+        document.getElementById("bio").textContent = "";
+        return;
+      }
+
+      document.getElementById("name").textContent = data.display_name + " (@"+ data.username +")";
+      document.getElementById("bio").textContent = data.bio || "";
+
+      document.getElementById("stats").textContent =
+        `Total logs: ${data.stats.total_logs} | Completed: ${data.stats.completed_logs}`;
+    }
+
+    loadProfile();
+
+    async function loadHabits(userId) {
+        // Fetch habits + streaks in parallel
+        const [habitsRes, streaksRes] = await Promise.all([
+            fetch(`${API_BASE}/habits?user_id=${userId}`),
+            fetch(`${API_BASE}/streaks?user_id=${userId}`)
+        ]);
+
+        const habits = await habitsRes.json();
+        const streaks = await streaksRes.json();
+
+        // Convert streaks into quick lookup map
+        const streakMap = {};
+        streaks.forEach(s => {
+            streakMap[s.habit] = s.streak;
+        });
+
+        const list = document.getElementById("habitList");
+        list.innerHTML = "";
+
+        if (!habits.length) {
+            const li = document.createElement("li");
+            li.textContent = "No habits logged yet.";
+            list.appendChild(li);
+            return;
+        }
+
+        habits.slice(0, 5).forEach(item => {
+            const li = document.createElement("li");
+
+            const status = item.completed ? "✔️" : "❌";
+            const streak = streakMap[item.habit] ?? 0;
+            const category = item.category ? ` (${item.category})` : "";
+
+            li.textContent = `${status} ${item.habit}${category} — 🔥 ${streak} day streak`;
+            list.appendChild(li);
+        });
+    }
+    
+    loadHabits(profile.id);
+
+  </script>
+</body>
+</html>

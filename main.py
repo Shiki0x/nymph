@@ -6,11 +6,11 @@ from datetime import datetime
 app = FastAPI()
 
 # -----------------------------
-# CORS CONFIGURATION
+# CORS CONFIGURATION (dev-friendly)
 # -----------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Dev only
+    allow_origins=["*"],  # In production you'll lock this to your real domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -18,19 +18,14 @@ app.add_middleware(
 
 DB_FILE = "nymph.db"
 
-# -----------------------------
-# DATABASE INITIALIZATION
-# -----------------------------
 
 def init_db():
     """
-    Create database tables if they do not already exist.
-    This runs once when the server starts.
+    Initializes the database schema.
+    We create tables if they do not exist.
     """
     with sqlite3.connect(DB_FILE) as conn:
-
-        # Users table
-        # In the future this will support auth, profiles, etc.
+        # Users table (identity only for now; auth comes later)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -39,13 +34,16 @@ def init_db():
             )
         """)
 
-        # Habit logs now belong to a user
+        # Habit logs table
+        # NEW: category + notes are added as optional columns
         conn.execute("""
             CREATE TABLE IF NOT EXISTS habit_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 habit TEXT NOT NULL,
                 completed INTEGER NOT NULL,
+                category TEXT,        -- optional (can be NULL)
+                notes TEXT,           -- optional (can be NULL)
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
@@ -66,78 +64,79 @@ def on_startup():
 @app.post("/users")
 def create_user(username: str):
     """
-    Create a new user.
-
-    This is NOT authentication.
-    Think of it as identity registration.
+    Create a user (no passwords/auth yet).
+    Returns an id that we can attach habits to.
     """
     created_at = datetime.utcnow().isoformat()
 
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.execute(
-                """
-                INSERT INTO users (username, created_at)
-                VALUES (?, ?)
-                """,
+                "INSERT INTO users (username, created_at) VALUES (?, ?)",
                 (username, created_at)
             )
             conn.commit()
-
             user_id = cursor.lastrowid
-
     except sqlite3.IntegrityError:
         return {"error": "Username already exists"}
 
-    return {
-        "id": user_id,
-        "username": username,
-        "created_at": created_at
-    }
+    return {"id": user_id, "username": username, "created_at": created_at}
 
 
 # -----------------------------
-# HABIT ENDPOINTS (OWNED)
+# HABIT ENDPOINTS
 # -----------------------------
 
 @app.post("/log-habit")
-def log_habit(user_id: int, habit: str, completed: bool):
+def log_habit(
+    user_id: int,
+    habit: str,
+    completed: bool,
+    category: str | None = None,
+    notes: str | None = None
+):
     """
-    Store a habit log for a specific user.
-    """
+    Log a habit for a user.
 
+    NEW:
+    - category: optional label (ex: "fitness", "study")
+    - notes: optional text for context (ex: "leg day", "read 20 pages")
+    """
     created_at = datetime.utcnow().isoformat()
     completed_int = 1 if completed else 0
 
     with sqlite3.connect(DB_FILE) as conn:
         conn.execute(
             """
-            INSERT INTO habit_logs (user_id, habit, completed, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO habit_logs (user_id, habit, completed, category, notes, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (user_id, habit, completed_int, created_at)
+            (user_id, habit, completed_int, category, notes, created_at)
         )
         conn.commit()
 
     return {
         "message": "Saved!",
-        "habit": habit,
-        "completed": completed,
-        "user_id": user_id,
-        "created_at": created_at
+        "entry": {
+            "user_id": user_id,
+            "habit": habit,
+            "completed": completed,
+            "category": category,
+            "notes": notes,
+            "created_at": created_at
+        }
     }
 
 
 @app.get("/habits")
 def get_habits(user_id: int):
     """
-    Retrieve all habits for a specific user.
+    Get all habit logs for a user (most recent first).
     """
-
     with sqlite3.connect(DB_FILE) as conn:
         cursor = conn.execute(
             """
-            SELECT habit, completed, created_at
+            SELECT habit, completed, category, notes, created_at
             FROM habit_logs
             WHERE user_id = ?
             ORDER BY id DESC
@@ -146,12 +145,14 @@ def get_habits(user_id: int):
         )
         rows = cursor.fetchall()
 
-    habits = []
-    for habit, completed_int, created_at in rows:
-        habits.append({
+    results = []
+    for habit, completed_int, category, notes, created_at in rows:
+        results.append({
             "habit": habit,
             "completed": bool(completed_int),
+            "category": category,
+            "notes": notes,
             "created_at": created_at
         })
 
-    return habits
+    return results

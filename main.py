@@ -6,13 +6,11 @@ from datetime import datetime, date
 app = FastAPI()
 
 # -----------------------------
-# CORS (dev settings)
+# CORS (dev)
 # -----------------------------
-# This allows your frontend (http.server on port 5500) to call your backend (uvicorn on 8000).
-# In production you would lock allow_origins down to your real domain(s).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # production: lock this down
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,11 +23,13 @@ def init_db():
     """
     Create tables if they don't exist.
 
-    IMPORTANT:
-    SQLite will NOT automatically add new columns to existing tables.
-    If you changed schema and get 500 errors, delete nymph.db during early dev.
+    NOTE:
+    SQLite does NOT auto-migrate old schemas.
+    During early development, if you change schema:
+    delete nymph.db and restart the server.
     """
     with sqlite3.connect(DB_FILE) as conn:
+        # Users (public profile fields live here)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,6 +40,7 @@ def init_db():
             )
         """)
 
+        # Habit logs (owned by a user)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS habit_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,13 +54,15 @@ def init_db():
             )
         """)
 
-                # Profile links: one user can have many links (GitHub, YouTube, etc.)
+        # Profile links (guns.lol style)
+        # icon is a key like: github, youtube, x, instagram, website, link
         conn.execute("""
             CREATE TABLE IF NOT EXISTS profile_links (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 label TEXT NOT NULL,
                 url TEXT NOT NULL,
+                icon TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
@@ -80,7 +83,7 @@ def on_startup():
 @app.post("/users")
 def create_user(username: str):
     """
-    Create a user (no auth yet).
+    Create a user (identity only; no auth yet).
     """
     created_at = datetime.utcnow().isoformat()
 
@@ -101,7 +104,7 @@ def create_user(username: str):
 @app.patch("/users/profile")
 def update_profile(user_id: int, display_name: str | None = None, bio: str | None = None):
     """
-    Update a user's public profile fields.
+    Update user's public profile fields.
     """
     with sqlite3.connect(DB_FILE) as conn:
         if display_name is not None:
@@ -110,7 +113,12 @@ def update_profile(user_id: int, display_name: str | None = None, bio: str | Non
             conn.execute("UPDATE users SET bio = ? WHERE id = ?", (bio, user_id))
         conn.commit()
 
-    return {"message": "Profile updated", "user_id": user_id, "display_name": display_name, "bio": bio}
+    return {
+        "message": "Profile updated",
+        "user_id": user_id,
+        "display_name": display_name,
+        "bio": bio
+    }
 
 
 # -----------------------------
@@ -137,7 +145,7 @@ def log_habit(
             INSERT INTO habit_logs (user_id, habit, completed, category, notes, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (user_id, habit, completed_int, category, notes, created_at)
+            (user_id, habit.strip(), completed_int, category, notes, created_at)
         )
         conn.commit()
 
@@ -185,7 +193,7 @@ def get_streaks(user_id: int):
 
     Rules:
     - Only completed=True counts
-    - Multiple completions in the same day count as ONE day
+    - Multiple completions same day count as one day
     - Count consecutive days backwards (today, or yesterday if not done today)
     """
     with sqlite3.connect(DB_FILE) as conn:
@@ -200,14 +208,12 @@ def get_streaks(user_id: int):
         )
         rows = cursor.fetchall()
 
-    # Build: habit -> set of dates where completed=True
     habit_days: dict[str, set[date]] = {}
 
     for habit, completed_int, created_at in rows:
         if not bool(completed_int):
             continue
 
-        # created_at is ISO string, get YYYY-MM-DD part
         day_str = created_at.split("T")[0]
         d = date.fromisoformat(day_str)
 
@@ -218,8 +224,6 @@ def get_streaks(user_id: int):
 
     for habit, days_set in habit_days.items():
         streak = 0
-
-        # Start from today if completed today, otherwise from yesterday
         cursor_day = today if today in days_set else date.fromordinal(today.toordinal() - 1)
 
         while cursor_day in days_set:
@@ -232,13 +236,74 @@ def get_streaks(user_id: int):
 
 
 # -----------------------------
-# PUBLIC PROFILES
+# LINKS (with icon key)
+# -----------------------------
+
+@app.post("/links")
+def add_link(user_id: int, label: str, url: str, icon: str = "link"):
+    """
+    Add a link to a user's public profile.
+    icon: github, youtube, x, instagram, website, link, etc.
+    """
+    created_at = datetime.utcnow().isoformat()
+    icon_key = (icon or "link").strip().lower()
+
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.execute(
+            """
+            INSERT INTO profile_links (user_id, label, url, icon, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (user_id, label.strip(), url.strip(), icon_key, created_at)
+        )
+        conn.commit()
+
+    return {"message": "Link added"}
+
+
+@app.get("/links")
+def get_links(user_id: int):
+    """
+    Get all links for a user (newest first).
+    """
+    with sqlite3.connect(DB_FILE) as conn:
+        cur = conn.execute(
+            """
+            SELECT id, label, url, icon, created_at
+            FROM profile_links
+            WHERE user_id = ?
+            ORDER BY id DESC
+            """,
+            (user_id,)
+        )
+        rows = cur.fetchall()
+
+    return [
+        {"id": r[0], "label": r[1], "url": r[2], "icon": r[3], "created_at": r[4]}
+        for r in rows
+    ]
+
+
+@app.delete("/links/{link_id}")
+def delete_link(link_id: int):
+    """
+    Delete a link by its id.
+    """
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.execute("DELETE FROM profile_links WHERE id = ?", (link_id,))
+        conn.commit()
+
+    return {"message": "Link deleted"}
+
+
+# -----------------------------
+# PUBLIC PROFILE
 # -----------------------------
 
 @app.get("/u/{username}")
 def public_profile(username: str):
     """
-    Public profile JSON (shareable).
+    Public profile JSON for sharing.
     """
     with sqlite3.connect(DB_FILE) as conn:
         user_cur = conn.execute(
@@ -277,74 +342,3 @@ def public_profile(username: str):
             "completed_logs": completed_logs
         }
     }
-
-
-@app.get("/u/{username}/summary")
-def public_profile_summary(username: str):
-    """
-    Smaller profile payload for embedding on a profile page.
-    """
-    profile = public_profile(username)
-    if "error" in profile:
-        return profile
-
-    return {
-        "username": profile["username"],
-        "display_name": profile["display_name"],
-        "bio": profile["bio"],
-        "stats": profile["stats"]
-    }
-
-@app.post("/links")
-def add_link(user_id: int, label: str, url: str):
-    """
-    Add a link to a user's public profile (ex: GitHub, YouTube).
-    """
-    created_at = datetime.utcnow().isoformat()
-
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.execute(
-            """
-            INSERT INTO profile_links (user_id, label, url, created_at)
-            VALUES (?, ?, ?, ?)
-            """,
-            (user_id, label.strip(), url.strip(), created_at)
-        )
-        conn.commit()
-
-    return {"message": "Link added"}
-
-
-@app.get("/links")
-def get_links(user_id: int):
-    """
-    Get all links for a user (newest first).
-    """
-    with sqlite3.connect(DB_FILE) as conn:
-        cur = conn.execute(
-            """
-            SELECT id, label, url, created_at
-            FROM profile_links
-            WHERE user_id = ?
-            ORDER BY id DESC
-            """,
-            (user_id,)
-        )
-        rows = cur.fetchall()
-
-    return [
-        {"id": r[0], "label": r[1], "url": r[2], "created_at": r[3]}
-        for r in rows
-    ]
-
-
-@app.delete("/links/{link_id}")
-def delete_link(link_id: int):
-    """
-    Delete a single link by id.
-    """
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.execute("DELETE FROM profile_links WHERE id = ?", (link_id,))
-        conn.commit()
-
-    return {"message": "Link deleted"}

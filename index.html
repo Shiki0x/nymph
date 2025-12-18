@@ -28,7 +28,7 @@
 
     label { display: block; margin-top: 10px; }
 
-    input, textarea, button {
+    input, textarea, button, select {
       width: 100%;
       margin: 6px 0;
       padding: 10px;
@@ -87,7 +87,7 @@
 
 <body>
   <h1>NYMPH</h1>
-  <p class="muted">Dev UI: Users + Profiles + Habits + Metadata + Streaks + Profile Links + Share Link</p>
+  <p class="muted">Dev UI: Users + Profiles + Habits + Streaks + Links (with icons)</p>
 
   <!-- CREATE USER -->
   <div class="card">
@@ -98,9 +98,7 @@
 
     <button class="smallBtn" onclick="createUser()">Create User</button>
 
-    <p class="muted">
-      Tip: After creating a user, the UI auto-fills your User ID across the page.
-    </p>
+    <p class="muted">After creating a user, IDs auto-fill across the page.</p>
   </div>
 
   <!-- UPDATE PROFILE -->
@@ -146,9 +144,22 @@
     <label>URL</label>
     <input id="linkUrlInput" placeholder="https://github.com/Shiki0x" />
 
+    <label>Icon</label>
+    <select id="linkIconInput">
+      <option value="github">GitHub</option>
+      <option value="youtube">YouTube</option>
+      <option value="x">X</option>
+      <option value="instagram">Instagram</option>
+      <option value="tiktok">TikTok</option>
+      <option value="twitch">Twitch</option>
+      <option value="discord">Discord</option>
+      <option value="website" selected>Website</option>
+      <option value="link">Generic</option>
+    </select>
+
     <button class="smallBtn" onclick="addLink()">Add Link</button>
 
-    <p class="muted">These will show up on the public profile page.</p>
+    <p class="muted">These display on your public profile page.</p>
 
     <ul id="linksList"></ul>
   </div>
@@ -213,6 +224,7 @@
     const linksUserIdInput = document.getElementById("linksUserIdInput");
     const linkLabelInput = document.getElementById("linkLabelInput");
     const linkUrlInput = document.getElementById("linkUrlInput");
+    const linkIconInput = document.getElementById("linkIconInput");
     const linksList = document.getElementById("linksList");
 
     // Habits
@@ -250,7 +262,7 @@
       profileUserIdInput.value = data.id;
       linksUserIdInput.value = data.id;
 
-      // Helpful default for share box
+      // Default share username
       shareUsernameInput.value = data.username;
 
       usernameInput.value = "";
@@ -270,7 +282,6 @@
       const url = new URL(`${API_BASE}/users/profile`);
       url.searchParams.set("user_id", userId);
 
-      // Only send fields if user typed something
       if (displayName) url.searchParams.set("display_name", displayName);
       if (bio) url.searchParams.set("bio", bio);
 
@@ -304,6 +315,7 @@
       const userId = linksUserIdInput.value;
       const label = linkLabelInput.value.trim();
       const url = linkUrlInput.value.trim();
+      const icon = linkIconInput.value;
 
       if (!label || !url) {
         alert("Label and URL are required");
@@ -314,6 +326,7 @@
       apiUrl.searchParams.set("user_id", userId);
       apiUrl.searchParams.set("label", label);
       apiUrl.searchParams.set("url", url);
+      apiUrl.searchParams.set("icon", icon);
 
       await fetch(apiUrl.toString(), { method: "POST" });
 
@@ -344,17 +357,15 @@
 
       data.forEach(link => {
         const li = document.createElement("li");
-
         li.innerHTML = `
           <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
             <div>
-              <strong>${link.label}</strong><br/>
+              <strong>${link.label}</strong> <span class="muted">(${link.icon})</span><br/>
               <span class="muted">${link.url}</span>
             </div>
             <button class="smallBtn" style="width:auto;" onclick="deleteLink(${link.id})">Delete</button>
           </div>
         `;
-
         linksList.appendChild(li);
       });
     }
@@ -424,10 +435,9 @@
         const category = item.category ? ` (${item.category})` : "";
         const notes = item.notes ? ` — ${item.notes}` : "";
         const status = item.completed ? "✔️" : "❌";
-
         const streak = streakMap[item.habit] ?? 0;
-        li.textContent = `${status} ${item.habit}${category}${notes}   🔥 Streak: ${streak}`;
 
+        li.textContent = `${status} ${item.habit}${category}${notes}   🔥 Streak: ${streak}`;
         habitList.appendChild(li);
       });
     }

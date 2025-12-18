@@ -25,7 +25,9 @@
     .muted { opacity:0.7; font-size:13px; }
 
     a.linkBtn {
-      display:block;
+      display:flex;
+      gap:10px;
+      align-items:center;
       padding:10px;
       margin:8px 0;
       border-radius:10px;
@@ -45,6 +47,13 @@
       border-radius:10px;
       border: 1px solid #2d2d2d;
       line-height:1.35;
+    }
+
+    .iconBox {
+      width: 28px;
+      text-align: center;
+      font-size: 18px;
+      opacity: 0.95;
     }
   </style>
 </head>
@@ -71,9 +80,22 @@
   <script>
     const API_BASE = "http://127.0.0.1:8000";
 
-    // Pull username from URL: profile.html?username=shiki
+    // profile.html?username=shiki
     const params = new URLSearchParams(window.location.search);
     const username = params.get("username");
+
+    // Map icon keys -> emojis (simple, works everywhere)
+    const ICONS = {
+      github: "🐙",
+      youtube: "▶️",
+      x: "𝕏",
+      instagram: "📸",
+      tiktok: "🎵",
+      twitch: "🟣",
+      discord: "💬",
+      website: "🌐",
+      link: "🔗"
+    };
 
     async function loadProfile() {
       if (!username) {
@@ -95,11 +117,9 @@
         return;
       }
 
-      // Render top section
       document.getElementById("name").textContent = `${profile.display_name} (@${profile.username})`;
       document.getElementById("bio").textContent = profile.bio || "";
 
-      // Render stats
       document.getElementById("stats").textContent =
         `Total logs: ${profile.stats.total_logs} | Completed: ${profile.stats.completed_logs}`;
 
@@ -126,8 +146,16 @@
         a.href = link.url;
         a.target = "_blank";
         a.rel = "noopener noreferrer";
-        a.textContent = link.label;
         a.className = "linkBtn";
+
+        const iconKey = (link.icon || "link").toLowerCase();
+        const icon = ICONS[iconKey] || "🔗";
+
+        a.innerHTML = `
+          <div class="iconBox">${icon}</div>
+          <div>${link.label}</div>
+        `;
+
         box.appendChild(a);
       });
     }
@@ -154,7 +182,6 @@
         return;
       }
 
-      // Show only the most recent 5 items
       habits.slice(0, 5).forEach(item => {
         const li = document.createElement("li");
 

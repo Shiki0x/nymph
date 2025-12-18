@@ -117,23 +117,40 @@
     }
 
     async function refreshHabits() {
-      const userId = userIdInput.value;
-      const res = await fetch(`${API_BASE}/habits?user_id=${userId}`);
-      const data = await res.json();
+  const userId = userIdInput.value;
 
-      habitList.innerHTML = "";
+  // Fetch habits and streaks at the same time
+  const [habitsRes, streaksRes] = await Promise.all([
+    fetch(`${API_BASE}/habits?user_id=${userId}`),
+    fetch(`${API_BASE}/streaks?user_id=${userId}`)
+  ]);
 
-      data.forEach(item => {
-        const li = document.createElement("li");
+  const habits = await habitsRes.json();
+  const streaks = await streaksRes.json();
 
-        const category = item.category ? ` (${item.category})` : "";
-        const notes = item.notes ? ` — ${item.notes}` : "";
-        const status = item.completed ? "✔️" : "❌";
+  // Build a lookup map: habit name -> streak count
+  const streakMap = {};
+  streaks.forEach(s => {
+    streakMap[s.habit] = s.streak;
+  });
 
-        li.textContent = `${status} ${item.habit}${category}${notes}`;
-        habitList.appendChild(li);
-      });
-    }
+  habitList.innerHTML = "";
+
+  habits.forEach(item => {
+    const li = document.createElement("li");
+
+    const category = item.category ? ` (${item.category})` : "";
+    const notes = item.notes ? ` — ${item.notes}` : "";
+    const status = item.completed ? "✔️" : "❌";
+
+    // Default streak to 0 if not found
+    const streak = streakMap[item.habit] ?? 0;
+    const streakText = ` 🔥 Streak: ${streak}`;
+
+    li.textContent = `${status} ${item.habit}${category}${notes}${streakText}`;
+    habitList.appendChild(li);
+  });
+}
 
     // Load habits on page load
     refreshHabits();

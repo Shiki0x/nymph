@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import sqlite3
-from datetime import datetime
+from datetime import datetime, date
 
 app = FastAPI()
 
@@ -154,5 +154,70 @@ def get_habits(user_id: int):
             "notes": notes,
             "created_at": created_at
         })
+
+    return results
+
+@app.get("/streaks")
+def get_streaks(user_id: int):
+    """
+    Calculate current daily streak for each habit for a user.
+
+    Rule:
+    - Count consecutive days ending today (or yesterday if not completed today)
+    - Only days where completed=True count
+    - Multiple logs in one day count as one day
+    """
+
+    with sqlite3.connect(DB_FILE) as conn:
+        cursor = conn.execute(
+            """
+            SELECT habit, completed, created_at
+            FROM habit_logs
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            """,
+            (user_id,)
+        )
+        rows = cursor.fetchall()
+
+    # Step 1: Build a map of habit -> set of completion dates
+    # We only care about days where completed=True
+    habit_days = {}
+
+    for habit, completed_int, created_at in rows:
+        if not bool(completed_int):
+            continue
+
+        # created_at is stored as ISO string; parse date portion
+        # Example: "2025-12-18T12:34:56.123456"
+        day_str = created_at.split("T")[0]
+        day = date.fromisoformat(day_str)
+
+        habit_days.setdefault(habit, set()).add(day)
+
+    # Step 2: For each habit, count consecutive days backward
+    today = date.today()
+    results = []
+
+    for habit, days_set in habit_days.items():
+        streak = 0
+
+        # If habit done today, start counting from today.
+        # If not, we allow streak to start from yesterday (common habit app behavior).
+        if today in days_set:
+            cursor_day = today
+        else:
+            cursor_day = today.replace(day=today.day)  # no-op, for clarity
+            cursor_day = today.fromordinal(today.toordinal() - 1)  # yesterday
+
+        # Count backward until we hit a missing day
+        while cursor_day in days_set:
+            streak += 1
+            cursor_day = cursor_day.fromordinal(cursor_day.toordinal() - 1)
+
+        results.append({"habit": habit, "streak": streak})
+
+    # Optional: include habits with 0 streak if they exist but no completions
+    # (We'll add that later when we normalize habits into their own table.)
 
     return results

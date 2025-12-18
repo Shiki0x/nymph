@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>NYMPH Habit Logger</title>
+    <style>
+      body { font-family: system-ui, Arial; max-width: 700px; margin: 40px auto; padding: 0 16px; }
+      input { padding: 10px; width: 280px; }
+      button { padding: 10px 14px; cursor: pointer; }
+      .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      ul { padding-left: 18px; }
+      li { margin: 8px 0; }
+      .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
+    </style>
+  </head>
+  <body>
+    <h1>NYMPH</h1>
+
+    <div class="card">
+      <div class="row">
+        <input id="habitInput" placeholder="habit name (ex: gym)" />
+        <label>
+          <input id="completedInput" type="checkbox" />
+          completed
+        </label>
+        <button id="logBtn">Log Habit</button>
+      </div>
+      <p id="msg"></p>
+    </div>
+
+    <h2>Logged habits</h2>
+    <button id="refreshBtn">Refresh</button>
+    <ul id="habitList"></ul>
+
+    <script>
+      const API_BASE = "http://127.0.0.1:8000";
+
+      const habitInput = document.getElementById("habitInput");
+      const completedInput = document.getElementById("completedInput");
+      const logBtn = document.getElementById("logBtn");
+      const refreshBtn = document.getElementById("refreshBtn");
+      const habitList = document.getElementById("habitList");
+      const msg = document.getElementById("msg");
+
+      async function refreshHabits() {
+        const res = await fetch(`${API_BASE}/habits`);
+        const data = await res.json();
+
+        habitList.innerHTML = "";
+        data.forEach((item) => {
+          const li = document.createElement("li");
+          li.textContent = `${item.habit} ${item.completed ? "✔" : "✘"}`;
+          habitList.appendChild(li);
+        });
+      }
+
+      async function logHabit() {
+        const habit = habitInput.value.trim();
+        const completed = completedInput.checked;
+
+        if (!habit) {
+          msg.textContent = "Type a habit name first.";
+          return;
+        }
+
+        const url = new URL(`${API_BASE}/log-habit`);
+        url.searchParams.set("habit", habit);
+        url.searchParams.set("completed", completed);
+
+        const res = await fetch(url.toString(), { method: "POST" });
+        const data = await res.json();
+
+        msg.textContent = data.message;
+        habitInput.value = "";
+        completedInput.checked = false;
+
+        await refreshHabits();
+      }
+
+      logBtn.addEventListener("click", logHabit);
+      refreshBtn.addEventListener("click", refreshHabits);
+
+      refreshHabits();
+    </script>
+  </body>
+</html>

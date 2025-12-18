@@ -1,86 +1,142 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>NYMPH Habit Logger</title>
-    <style>
-      body { font-family: system-ui, Arial; max-width: 700px; margin: 40px auto; padding: 0 16px; }
-      input { padding: 10px; width: 280px; }
-      button { padding: 10px 14px; cursor: pointer; }
-      .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-      ul { padding-left: 18px; }
-      li { margin: 8px 0; }
-      .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
-    </style>
-  </head>
-  <body>
-    <h1>NYMPH</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>NYMPH – Habit Tracker</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: #eee;
+      max-width: 600px;
+      margin: auto;
+      padding: 20px;
+    }
 
-    <div class="card">
-      <div class="row">
-        <input id="habitInput" placeholder="habit name (ex: gym)" />
-        <label>
-          <input id="completedInput" type="checkbox" />
-          completed
-        </label>
-        <button id="logBtn">Log Habit</button>
-      </div>
-      <p id="msg"></p>
-    </div>
+    input, textarea, button {
+      width: 100%;
+      margin: 6px 0;
+      padding: 8px;
+      font-size: 14px;
+    }
 
-    <h2>Logged habits</h2>
-    <button id="refreshBtn">Refresh</button>
-    <ul id="habitList"></ul>
+    button {
+      cursor: pointer;
+      background: #4caf50;
+      border: none;
+      color: black;
+      font-weight: bold;
+    }
 
-    <script>
-      const API_BASE = "http://127.0.0.1:8000";
+    ul {
+      list-style: none;
+      padding: 0;
+    }
 
-      const habitInput = document.getElementById("habitInput");
-      const completedInput = document.getElementById("completedInput");
-      const logBtn = document.getElementById("logBtn");
-      const refreshBtn = document.getElementById("refreshBtn");
-      const habitList = document.getElementById("habitList");
-      const msg = document.getElementById("msg");
+    li {
+      background: #222;
+      margin: 6px 0;
+      padding: 10px;
+    }
+  </style>
+</head>
 
-      async function refreshHabits() {
-        const res = await fetch(`${API_BASE}/habits`);
-        const data = await res.json();
+<body>
+  <h1>NYMPH</h1>
+  <p>Simple habit logger (dev UI)</p>
 
-        habitList.innerHTML = "";
-        data.forEach((item) => {
-          const li = document.createElement("li");
-          li.textContent = `${item.habit} ${item.completed ? "✔" : "✘"}`;
-          habitList.appendChild(li);
-        });
+  <!-- USER ID -->
+  <label>User ID</label>
+  <input id="userIdInput" type="number" value="1" min="1" />
+
+  <!-- HABIT -->
+  <label>Habit</label>
+  <input id="habitInput" placeholder="gym, study, meditate..." />
+
+  <!-- CATEGORY -->
+  <label>Category</label>
+  <input id="categoryInput" placeholder="fitness, study, mental..." />
+
+  <!-- NOTES -->
+  <label>Notes</label>
+  <textarea id="notesInput" placeholder="optional notes..."></textarea>
+
+  <!-- COMPLETED -->
+  <label>
+    <input id="completedInput" type="checkbox" />
+    Completed
+  </label>
+
+  <button onclick="logHabit()">Log Habit</button>
+
+  <h2>Habits</h2>
+  <ul id="habitList"></ul>
+
+  <script>
+    // Backend base URL
+    const API_BASE = "http://127.0.0.1:8000";
+
+    // Grab elements once
+    const userIdInput = document.getElementById("userIdInput");
+    const habitInput = document.getElementById("habitInput");
+    const categoryInput = document.getElementById("categoryInput");
+    const notesInput = document.getElementById("notesInput");
+    const completedInput = document.getElementById("completedInput");
+    const habitList = document.getElementById("habitList");
+
+    async function logHabit() {
+      const userId = userIdInput.value;
+      const habit = habitInput.value.trim();
+      const completed = completedInput.checked;
+      const category = categoryInput.value.trim();
+      const notes = notesInput.value.trim();
+
+      if (!habit) {
+        alert("Habit is required");
+        return;
       }
 
-      async function logHabit() {
-        const habit = habitInput.value.trim();
-        const completed = completedInput.checked;
+      // Build URL with query params (matches FastAPI)
+      const url = new URL(`${API_BASE}/log-habit`);
+      url.searchParams.set("user_id", userId);
+      url.searchParams.set("habit", habit);
+      url.searchParams.set("completed", completed);
 
-        if (!habit) {
-          msg.textContent = "Type a habit name first.";
-          return;
-        }
+      if (category) url.searchParams.set("category", category);
+      if (notes) url.searchParams.set("notes", notes);
 
-        const url = new URL(`${API_BASE}/log-habit`);
-        url.searchParams.set("habit", habit);
-        url.searchParams.set("completed", completed);
+      await fetch(url, { method: "POST" });
 
-        const res = await fetch(url.toString(), { method: "POST" });
-        const data = await res.json();
-
-        msg.textContent = data.message;
-        habitInput.value = "";
-        completedInput.checked = false;
-
-        await refreshHabits();
-      }
-
-      logBtn.addEventListener("click", logHabit);
-      refreshBtn.addEventListener("click", refreshHabits);
+      // Clear inputs
+      habitInput.value = "";
+      categoryInput.value = "";
+      notesInput.value = "";
+      completedInput.checked = false;
 
       refreshHabits();
-    </script>
-  </body>
+    }
+
+    async function refreshHabits() {
+      const userId = userIdInput.value;
+      const res = await fetch(`${API_BASE}/habits?user_id=${userId}`);
+      const data = await res.json();
+
+      habitList.innerHTML = "";
+
+      data.forEach(item => {
+        const li = document.createElement("li");
+
+        const category = item.category ? ` (${item.category})` : "";
+        const notes = item.notes ? ` — ${item.notes}` : "";
+        const status = item.completed ? "✔️" : "❌";
+
+        li.textContent = `${status} ${item.habit}${category}${notes}`;
+        habitList.appendChild(li);
+      });
+    }
+
+    // Load habits on page load
+    refreshHabits();
+  </script>
+</body>
 </html>

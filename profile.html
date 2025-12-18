@@ -3,12 +3,52 @@
 <head>
   <meta charset="UTF-8" />
   <title>NYMPH Profile</title>
+
   <style>
-    body { font-family: Arial, sans-serif; background:#111; color:#eee; max-width:700px; margin:auto; padding:20px; }
-    .card { background:#1b1b1b; padding:14px; border-radius:10px; margin:12px 0; }
-    .muted { opacity:0.7; }
+    body {
+      font-family: Arial, sans-serif;
+      background:#111;
+      color:#eee;
+      max-width:780px;
+      margin:auto;
+      padding:20px;
+    }
+
+    .card {
+      background:#1b1b1b;
+      padding:14px;
+      border-radius:10px;
+      margin:12px 0;
+      border: 1px solid #2a2a2a;
+    }
+
+    .muted { opacity:0.7; font-size:13px; }
+
+    a.linkBtn {
+      display:block;
+      padding:10px;
+      margin:8px 0;
+      border-radius:10px;
+      background:#222;
+      color:#eee;
+      text-decoration:none;
+      border:1px solid #333;
+      font-weight:bold;
+    }
+
+    ul { list-style:none; padding:0; margin:0; }
+
+    li {
+      background:#222;
+      margin:8px 0;
+      padding:12px;
+      border-radius:10px;
+      border: 1px solid #2d2d2d;
+      line-height:1.35;
+    }
   </style>
 </head>
+
 <body>
   <h1 id="name">NYMPH</h1>
   <p id="bio" class="muted"></p>
@@ -19,14 +59,19 @@
   </div>
 
   <div class="card">
-  <h2>Recent Habits</h2>
-  <ul id="habitList"></ul>
-</div>
+    <h2>Links</h2>
+    <div id="linksBox" class="muted">Loading links...</div>
+  </div>
+
+  <div class="card">
+    <h2>Recent Habits</h2>
+    <ul id="habitList"></ul>
+  </div>
 
   <script>
     const API_BASE = "http://127.0.0.1:8000";
 
-    // Read ?username=shiki from the URL
+    // Pull username from URL: profile.html?username=shiki
     const params = new URLSearchParams(window.location.search);
     const username = params.get("username");
 
@@ -34,67 +79,96 @@
       if (!username) {
         document.getElementById("name").textContent = "Missing ?username=";
         document.getElementById("bio").textContent = "Example: profile.html?username=shiki";
+        document.getElementById("stats").textContent = "";
+        document.getElementById("linksBox").textContent = "";
         return;
       }
 
-      const res = await fetch(`${API_BASE}/u/${username}/summary`);
-      const data = await res.json();
+      const res = await fetch(`${API_BASE}/u/${username}`);
+      const profile = await res.json();
 
-      if (data.error) {
+      if (profile.error) {
         document.getElementById("name").textContent = "User not found";
         document.getElementById("bio").textContent = "";
+        document.getElementById("stats").textContent = "";
+        document.getElementById("linksBox").textContent = "";
         return;
       }
 
-      document.getElementById("name").textContent = data.display_name + " (@"+ data.username +")";
-      document.getElementById("bio").textContent = data.bio || "";
+      // Render top section
+      document.getElementById("name").textContent = `${profile.display_name} (@${profile.username})`;
+      document.getElementById("bio").textContent = profile.bio || "";
 
+      // Render stats
       document.getElementById("stats").textContent =
-        `Total logs: ${data.stats.total_logs} | Completed: ${data.stats.completed_logs}`;
+        `Total logs: ${profile.stats.total_logs} | Completed: ${profile.stats.completed_logs}`;
+
+      // Load extra public sections
+      loadLinks(profile.id);
+      loadHabits(profile.id);
+    }
+
+    async function loadLinks(userId) {
+      const res = await fetch(`${API_BASE}/links?user_id=${userId}`);
+      const links = await res.json();
+
+      const box = document.getElementById("linksBox");
+      box.innerHTML = "";
+
+      if (!links.length) {
+        box.textContent = "No links added yet.";
+        box.classList.add("muted");
+        return;
+      }
+
+      links.forEach(link => {
+        const a = document.createElement("a");
+        a.href = link.url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.textContent = link.label;
+        a.className = "linkBtn";
+        box.appendChild(a);
+      });
+    }
+
+    async function loadHabits(userId) {
+      const [habitsRes, streaksRes] = await Promise.all([
+        fetch(`${API_BASE}/habits?user_id=${userId}`),
+        fetch(`${API_BASE}/streaks?user_id=${userId}`)
+      ]);
+
+      const habits = await habitsRes.json();
+      const streaks = await streaksRes.json();
+
+      const streakMap = {};
+      streaks.forEach(s => { streakMap[s.habit] = s.streak; });
+
+      const list = document.getElementById("habitList");
+      list.innerHTML = "";
+
+      if (!habits.length) {
+        const li = document.createElement("li");
+        li.textContent = "No habits logged yet.";
+        list.appendChild(li);
+        return;
+      }
+
+      // Show only the most recent 5 items
+      habits.slice(0, 5).forEach(item => {
+        const li = document.createElement("li");
+
+        const status = item.completed ? "✔️" : "❌";
+        const streak = streakMap[item.habit] ?? 0;
+        const category = item.category ? ` (${item.category})` : "";
+        const notes = item.notes ? ` — ${item.notes}` : "";
+
+        li.textContent = `${status} ${item.habit}${category}${notes}   🔥 Streak: ${streak}`;
+        list.appendChild(li);
+      });
     }
 
     loadProfile();
-
-    async function loadHabits(userId) {
-        // Fetch habits + streaks in parallel
-        const [habitsRes, streaksRes] = await Promise.all([
-            fetch(`${API_BASE}/habits?user_id=${userId}`),
-            fetch(`${API_BASE}/streaks?user_id=${userId}`)
-        ]);
-
-        const habits = await habitsRes.json();
-        const streaks = await streaksRes.json();
-
-        // Convert streaks into quick lookup map
-        const streakMap = {};
-        streaks.forEach(s => {
-            streakMap[s.habit] = s.streak;
-        });
-
-        const list = document.getElementById("habitList");
-        list.innerHTML = "";
-
-        if (!habits.length) {
-            const li = document.createElement("li");
-            li.textContent = "No habits logged yet.";
-            list.appendChild(li);
-            return;
-        }
-
-        habits.slice(0, 5).forEach(item => {
-            const li = document.createElement("li");
-
-            const status = item.completed ? "✔️" : "❌";
-            const streak = streakMap[item.habit] ?? 0;
-            const category = item.category ? ` (${item.category})` : "";
-
-            li.textContent = `${status} ${item.habit}${category} — 🔥 ${streak} day streak`;
-            list.appendChild(li);
-        });
-    }
-    
-    loadHabits(profile.id);
-
   </script>
 </body>
 </html>

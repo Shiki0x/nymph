@@ -9,7 +9,7 @@
       font-family: Arial, sans-serif;
       background: #111;
       color: #eee;
-      max-width: 780px;
+      max-width: 820px;
       margin: auto;
       padding: 20px;
     }
@@ -80,13 +80,14 @@
       padding: 12px;
       border-radius: 10px;
       line-height: 1.35;
+      border: 1px solid #2d2d2d;
     }
   </style>
 </head>
 
 <body>
   <h1>NYMPH</h1>
-  <p class="muted">Dev UI: Users + Profiles + Habits + Metadata + Streaks + Share Link</p>
+  <p class="muted">Dev UI: Users + Profiles + Habits + Metadata + Streaks + Profile Links + Share Link</p>
 
   <!-- CREATE USER -->
   <div class="card">
@@ -98,7 +99,7 @@
     <button class="smallBtn" onclick="createUser()">Create User</button>
 
     <p class="muted">
-      Tip: After creating a user, the UI auto-fills the User ID below.
+      Tip: After creating a user, the UI auto-fills your User ID across the page.
     </p>
   </div>
 
@@ -130,6 +131,26 @@
     <button class="smallBtn" onclick="copyShareLink()">Copy Share Link</button>
 
     <p class="muted" id="shareLinkPreview"></p>
+  </div>
+
+  <!-- PROFILE LINKS -->
+  <div class="card">
+    <h2>Profile Links</h2>
+
+    <label>User ID</label>
+    <input id="linksUserIdInput" type="number" value="1" min="1" />
+
+    <label>Label</label>
+    <input id="linkLabelInput" placeholder="GitHub" />
+
+    <label>URL</label>
+    <input id="linkUrlInput" placeholder="https://github.com/Shiki0x" />
+
+    <button class="smallBtn" onclick="addLink()">Add Link</button>
+
+    <p class="muted">These will show up on the public profile page.</p>
+
+    <ul id="linksList"></ul>
   </div>
 
   <!-- LOG HABIT -->
@@ -172,24 +193,29 @@
   </div>
 
   <script>
-    // Backend base URL (FastAPI)
     const API_BASE = "http://127.0.0.1:8000";
 
-    // Elements (user)
+    // Create User
     const usernameInput = document.getElementById("usernameInput");
     const userIdInput = document.getElementById("userIdInput");
 
-    // Elements (profile)
+    // Profile
     const profileUserIdInput = document.getElementById("profileUserIdInput");
     const displayNameInput = document.getElementById("displayNameInput");
     const bioInput = document.getElementById("bioInput");
     const profileStatus = document.getElementById("profileStatus");
 
-    // Elements (share)
+    // Share
     const shareUsernameInput = document.getElementById("shareUsernameInput");
     const shareLinkPreview = document.getElementById("shareLinkPreview");
 
-    // Elements (habits)
+    // Links
+    const linksUserIdInput = document.getElementById("linksUserIdInput");
+    const linkLabelInput = document.getElementById("linkLabelInput");
+    const linkUrlInput = document.getElementById("linkUrlInput");
+    const linksList = document.getElementById("linksList");
+
+    // Habits
     const habitInput = document.getElementById("habitInput");
     const categoryInput = document.getElementById("categoryInput");
     const notesInput = document.getElementById("notesInput");
@@ -219,14 +245,17 @@
 
       alert(`User created: @${data.username} (id=${data.id})`);
 
-      // Auto-fill IDs across UI for convenience
+      // Auto-fill IDs across UI
       userIdInput.value = data.id;
       profileUserIdInput.value = data.id;
+      linksUserIdInput.value = data.id;
 
       // Helpful default for share box
       shareUsernameInput.value = data.username;
 
       usernameInput.value = "";
+
+      refreshLinks();
       refreshHabits();
     }
 
@@ -241,7 +270,7 @@
       const url = new URL(`${API_BASE}/users/profile`);
       url.searchParams.set("user_id", userId);
 
-      // Only send fields if user actually typed something
+      // Only send fields if user typed something
       if (displayName) url.searchParams.set("display_name", displayName);
       if (bio) url.searchParams.set("bio", bio);
 
@@ -269,6 +298,68 @@
     }
 
     // -----------------------------
+    // Links (add/list/delete)
+    // -----------------------------
+    async function addLink() {
+      const userId = linksUserIdInput.value;
+      const label = linkLabelInput.value.trim();
+      const url = linkUrlInput.value.trim();
+
+      if (!label || !url) {
+        alert("Label and URL are required");
+        return;
+      }
+
+      const apiUrl = new URL(`${API_BASE}/links`);
+      apiUrl.searchParams.set("user_id", userId);
+      apiUrl.searchParams.set("label", label);
+      apiUrl.searchParams.set("url", url);
+
+      await fetch(apiUrl.toString(), { method: "POST" });
+
+      linkLabelInput.value = "";
+      linkUrlInput.value = "";
+
+      refreshLinks();
+    }
+
+    async function deleteLink(linkId) {
+      await fetch(`${API_BASE}/links/${linkId}`, { method: "DELETE" });
+      refreshLinks();
+    }
+
+    async function refreshLinks() {
+      const userId = linksUserIdInput.value;
+      const res = await fetch(`${API_BASE}/links?user_id=${userId}`);
+      const data = await res.json();
+
+      linksList.innerHTML = "";
+
+      if (!data.length) {
+        const li = document.createElement("li");
+        li.textContent = "No links yet.";
+        linksList.appendChild(li);
+        return;
+      }
+
+      data.forEach(link => {
+        const li = document.createElement("li");
+
+        li.innerHTML = `
+          <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+            <div>
+              <strong>${link.label}</strong><br/>
+              <span class="muted">${link.url}</span>
+            </div>
+            <button class="smallBtn" style="width:auto;" onclick="deleteLink(${link.id})">Delete</button>
+          </div>
+        `;
+
+        linksList.appendChild(li);
+      });
+    }
+
+    // -----------------------------
     // Log Habit
     // -----------------------------
     async function logHabit() {
@@ -293,7 +384,6 @@
 
       await fetch(url.toString(), { method: "POST" });
 
-      // Clear inputs
       habitInput.value = "";
       categoryInput.value = "";
       notesInput.value = "";
@@ -316,11 +406,8 @@
       const habits = await habitsRes.json();
       const streaks = await streaksRes.json();
 
-      // Build habit->streak map
       const streakMap = {};
-      streaks.forEach(s => {
-        streakMap[s.habit] = s.streak;
-      });
+      streaks.forEach(s => { streakMap[s.habit] = s.streak; });
 
       habitList.innerHTML = "";
 
@@ -338,15 +425,15 @@
         const notes = item.notes ? ` — ${item.notes}` : "";
         const status = item.completed ? "✔️" : "❌";
 
-        // Default streak to 0 if not found
         const streak = streakMap[item.habit] ?? 0;
-
         li.textContent = `${status} ${item.habit}${category}${notes}   🔥 Streak: ${streak}`;
+
         habitList.appendChild(li);
       });
     }
 
-    // Load on page start
+    // Initial load
+    refreshLinks();
     refreshHabits();
   </script>
 </body>

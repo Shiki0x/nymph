@@ -53,6 +53,18 @@ def init_db():
             )
         """)
 
+                # Profile links: one user can have many links (GitHub, YouTube, etc.)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS profile_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                label TEXT NOT NULL,
+                url TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
         conn.commit()
 
 
@@ -282,3 +294,57 @@ def public_profile_summary(username: str):
         "bio": profile["bio"],
         "stats": profile["stats"]
     }
+
+@app.post("/links")
+def add_link(user_id: int, label: str, url: str):
+    """
+    Add a link to a user's public profile (ex: GitHub, YouTube).
+    """
+    created_at = datetime.utcnow().isoformat()
+
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.execute(
+            """
+            INSERT INTO profile_links (user_id, label, url, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (user_id, label.strip(), url.strip(), created_at)
+        )
+        conn.commit()
+
+    return {"message": "Link added"}
+
+
+@app.get("/links")
+def get_links(user_id: int):
+    """
+    Get all links for a user (newest first).
+    """
+    with sqlite3.connect(DB_FILE) as conn:
+        cur = conn.execute(
+            """
+            SELECT id, label, url, created_at
+            FROM profile_links
+            WHERE user_id = ?
+            ORDER BY id DESC
+            """,
+            (user_id,)
+        )
+        rows = cur.fetchall()
+
+    return [
+        {"id": r[0], "label": r[1], "url": r[2], "created_at": r[3]}
+        for r in rows
+    ]
+
+
+@app.delete("/links/{link_id}")
+def delete_link(link_id: int):
+    """
+    Delete a single link by id.
+    """
+    with sqlite3.connect(DB_FILE) as conn:
+        conn.execute("DELETE FROM profile_links WHERE id = ?", (link_id,))
+        conn.commit()
+
+    return {"message": "Link deleted"}

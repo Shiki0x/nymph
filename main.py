@@ -1,365 +1,384 @@
-from fastapi import FastAPI, Body
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+
 import sqlite3
 import json
 from datetime import datetime
-from typing import Optional
 
+# -----------------------------
+# App setup
+# -----------------------------
 app = FastAPI()
 
-# Allow your frontend (running on port 5500) to call your backend (port 8000)
-# In production you would restrict allow_origins to your real domain.
+# CORS lets your frontend (running on port 5500) call your backend (port 8000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # For dev this is fine. Later we'll lock this down.
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-DB_FILE = "nymph.db"
+DB_PATH = "nymph.db"
 
-
-# ----------------------------
-# Helpers
-# ----------------------------
-
-def now_iso() -> str:
-    """Return a UTC timestamp as an ISO string."""
-    return datetime.utcnow().isoformat()
-
-
-def guess_icon_from_url(url: str) -> str:
+# -----------------------------
+# Database helpers
+# -----------------------------
+def get_conn():
     """
-    Guess an icon key based on a URL's domain.
-    This is a simple auto-detect helper for profile links.
+    Opens a connection to SQLite.
+    check_same_thread=False allows FastAPI to access the DB from multiple threads during dev.
     """
-    u = (url or "").lower()
-
-    if "github.com" in u:
-        return "github"
-    if "youtube.com" in u or "youtu.be" in u:
-        return "youtube"
-    if "x.com" in u or "twitter.com" in u:
-        return "x"
-    if "instagram.com" in u:
-        return "instagram"
-    if "tiktok.com" in u:
-        return "tiktok"
-    if "twitch.tv" in u:
-        return "twitch"
-    if "discord.gg" in u or "discord.com" in u:
-        return "discord"
-
-    if u.startswith("http://") or u.startswith("https://"):
-        return "website"
-
-    return "link"
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row  # This allows dict-like access to columns
+    return conn
 
 
-def init_db() -> None:
+def init_db():
     """
-    Create DB tables if they don't exist.
-    Safe to run on every start.
+    Creates tables if they don't exist.
+    This keeps your project "plug and play" on fresh clones.
     """
-    with sqlite3.connect(DB_FILE) as conn:
-        cur = conn.cursor()
+    conn = get_conn()
+    cur = conn.cursor()
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          username TEXT UNIQUE NOT NULL,
-          display_name TEXT NOT NULL,
-          bio TEXT DEFAULT '',
-          created_at TEXT NOT NULL
-        );
-        """)
+    # Users table
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        display_name TEXT NOT NULL,
+        bio TEXT DEFAULT ''
+    )
+    """)
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS habit_logs (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          habit TEXT NOT NULL,
-          category TEXT DEFAULT '',
-          notes TEXT DEFAULT '',
-          completed INTEGER NOT NULL,
-          created_at TEXT NOT NULL,
-          FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-        """)
+    # Habits table
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS habits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        habit TEXT NOT NULL,
+        category TEXT DEFAULT '',
+        notes TEXT DEFAULT '',
+        completed INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+    """)
 
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS profile_links (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          label TEXT NOT NULL,
-          url TEXT NOT NULL,
-          icon TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-        """)
+    # Links table
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        label TEXT NOT NULL,
+        url TEXT NOT NULL,
+        icon TEXT DEFAULT 'link',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+    """)
 
-        # Phase 2: Flexible profile cards
-        cur.execute("""
-        CREATE TABLE IF NOT EXISTS profile_cards (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          type TEXT NOT NULL,
-          title TEXT NOT NULL,
-          content_json TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          FOREIGN KEY (user_id) REFERENCES users(id)
-        );
-        """)
+    # Cards table (Profile Cards)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS cards (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        content_json TEXT NOT NULL,
+        is_public INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+    """)
 
-        conn.commit()
-
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
-
-
-def get_user_by_username(username: str) -> Optional[dict]:
-    """Return user row as dict, or None."""
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT * FROM users WHERE username = ?",
-            (username.strip().lower(),)
-        ).fetchone()
-        return dict(row) if row else None
+    conn.commit()
+    conn.close()
 
 
-# ----------------------------
-# Request Models (Pydantic)
-# ----------------------------
-
-class CardCreate(BaseModel):
-    user_id: int
-    type: str
-    title: str
-    content: dict  # This is the JSON body for the card
+# Run DB init once when the app starts
+init_db()
 
 
-# ----------------------------
-# Root
-# ----------------------------
-
-@app.get("/")
-def root():
-    return {"message": "NYMPH backend is running"}
-
-
-# ----------------------------
-# Users
-# ----------------------------
-
-@app.post("/users")
-def create_user(username: str, display_name: str, bio: str = ""):
+# -----------------------------
+# Utility: user fetching / creation
+# -----------------------------
+def get_or_create_user(username: str, display_name: str = None, bio: str = ""):
     """
-    Create a new user profile.
+    If the user exists, return it.
+    If not, create it.
+    This keeps your dev workflow smooth (no separate "register" step needed yet).
     """
-    username_clean = username.strip().lower()
+    conn = get_conn()
+    cur = conn.cursor()
 
-    with sqlite3.connect(DB_FILE) as conn:
-        try:
-            conn.execute(
-                "INSERT INTO users (username, display_name, bio, created_at) VALUES (?, ?, ?, ?)",
-                (username_clean, display_name.strip(), bio.strip(), now_iso())
-            )
-            conn.commit()
-        except sqlite3.IntegrityError:
-            return {"error": "Username already exists"}
+    cur.execute("SELECT * FROM users WHERE username = ?", (username,))
+    row = cur.fetchone()
 
-    return {"message": "User created", "username": username_clean}
+    if row:
+        conn.close()
+        return dict(row)
+
+    # If user doesn't exist, create them
+    if not display_name:
+        display_name = username.upper()
+
+    cur.execute(
+        "INSERT INTO users (username, display_name, bio) VALUES (?, ?, ?)",
+        (username, display_name, bio)
+    )
+    conn.commit()
+
+    cur.execute("SELECT * FROM users WHERE username = ?", (username,))
+    row = cur.fetchone()
+    conn.close()
+
+    return dict(row)
 
 
+# -----------------------------
+# Users endpoints
+# -----------------------------
 @app.get("/users/by-username")
-def get_user(username: str):
-    """
-    Fetch a user profile by username.
-    """
-    user = get_user_by_username(username)
-    if not user:
+def get_user_by_username(username: str):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE username = ?", (username,))
+    row = cur.fetchone()
+    conn.close()
+
+    if not row:
         return {"error": "User not found"}
-    return user
+
+    return dict(row)
 
 
-# ----------------------------
-# Habits
-# ----------------------------
+@app.post("/users/upsert")
+def upsert_user(username: str, display_name: str = None, bio: str = ""):
+    """
+    Dev-friendly: ensures a user exists and can update basic fields.
+    """
+    user = get_or_create_user(username=username, display_name=display_name, bio=bio)
 
+    # Update if display_name or bio passed
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET display_name = ?, bio = ? WHERE id = ?",
+        (display_name or user["display_name"], bio or user["bio"], user["id"])
+    )
+    conn.commit()
+    conn.close()
+
+    # Return latest
+    return get_user_by_username(username)
+
+
+# -----------------------------
+# Habits endpoints
+# -----------------------------
 @app.post("/log-habit")
-def log_habit(
-    user_id: int,
-    habit: str,
-    completed: bool,
-    category: str = "",
-    notes: str = ""
-):
+def log_habit(user_id: int, habit: str, completed: bool, category: str = "", notes: str = ""):
     """
-    Log a habit event for a user.
+    Creates a habit log row.
+    We store completed as 1/0 because SQLite doesn't have a native boolean type.
     """
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.execute(
-            """
-            INSERT INTO habit_logs (user_id, habit, category, notes, completed, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (user_id, habit.strip(), category.strip(), notes.strip(), int(completed), now_iso())
-        )
-        conn.commit()
+    conn = get_conn()
+    cur = conn.cursor()
 
-    return {"message": "Habit logged"}
+    created_at = datetime.utcnow().isoformat()
+
+    cur.execute("""
+        INSERT INTO habits (user_id, habit, category, notes, completed, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (user_id, habit, category, notes, 1 if completed else 0, created_at))
+
+    conn.commit()
+    conn.close()
+
+    return {"ok": True}
 
 
 @app.get("/habits")
-def list_habits(user_id: int):
+def get_habits(user_id: int):
     """
-    Return all habit logs for a user (latest first).
+    Returns habits newest-first.
     """
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """
-            SELECT id, habit, category, notes, completed, created_at
-            FROM habit_logs
-            WHERE user_id = ?
-            ORDER BY id DESC
-            """,
-            (user_id,)
-        ).fetchall()
-        return [dict(r) for r in rows]
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, user_id, habit, category, notes, completed, created_at
+        FROM habits
+        WHERE user_id = ?
+        ORDER BY id DESC
+    """, (user_id,))
+
+    rows = cur.fetchall()
+    conn.close()
+
+    # Convert completed integer back into boolean for the frontend
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["completed"] = bool(d["completed"])
+        result.append(d)
+
+    return result
 
 
-# ----------------------------
-# Links
-# ----------------------------
-
-@app.post("/links")
-def add_link(user_id: int, label: str, url: str, icon: str = "auto"):
+# -----------------------------
+# Links endpoints
+# -----------------------------
+@app.post("/links/add")
+def add_link(user_id: int, label: str, url: str, icon: str = "link"):
     """
-    Add a link to a user's profile.
-    icon = "auto" will guess based on URL.
+    Adds a link to the user's profile.
+    icon is a short key like: github, youtube, website, etc.
     """
-    icon_key = (icon or "auto").strip().lower()
-    if icon_key == "auto":
-        icon_key = guess_icon_from_url(url)
+    conn = get_conn()
+    cur = conn.cursor()
 
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.execute(
-            """
-            INSERT INTO profile_links (user_id, label, url, icon, created_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (user_id, label.strip(), url.strip(), icon_key, now_iso())
-        )
-        conn.commit()
+    created_at = datetime.utcnow().isoformat()
 
-    return {"message": "Link added", "icon": icon_key}
+    cur.execute("""
+        INSERT INTO links (user_id, label, url, icon, created_at)
+        VALUES (?, ?, ?, ?, ?)
+    """, (user_id, label, url, icon, created_at))
+
+    conn.commit()
+    conn.close()
+
+    return {"ok": True}
 
 
 @app.get("/links")
-def list_links(user_id: int):
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """
-            SELECT id, label, url, icon, created_at
-            FROM profile_links
-            WHERE user_id = ?
-            ORDER BY id DESC
-            """,
-            (user_id,)
-        ).fetchall()
-        return [dict(r) for r in rows]
+def get_links(user_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, user_id, label, url, icon, created_at
+        FROM links
+        WHERE user_id = ?
+        ORDER BY id DESC
+    """, (user_id,))
+
+    rows = cur.fetchall()
+    conn.close()
+
+    return [dict(r) for r in rows]
 
 
-@app.delete("/links")
-def delete_link(id: int):
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.execute("DELETE FROM profile_links WHERE id = ?", (id,))
-        conn.commit()
-    return {"message": "Link deleted"}
-
-
-# ----------------------------
-# Profile Cards (Phase 2) - JSON Body version (IMPORTANT)
-# ----------------------------
-
-@app.post("/cards")
-def create_card(payload: CardCreate = Body(...)):
+# -----------------------------
+# Cards endpoints (Phase 2)
+# -----------------------------
+@app.post("/cards/add")
+def add_card(user_id: int, type: str, title: str, content_json: str, is_public: bool = True):
     """
-    Create a profile card using JSON in request body.
-    This avoids URL encoding / length issues.
+    Adds a profile card.
+    - type: "quote" | "list" | "anime_grid" | "text"
+    - title: card title
+    - content_json: JSON string (we validate it is valid JSON)
     """
-    type_clean = payload.type.strip().lower()
-    content_obj = payload.content
+    # Validate JSON so we don't store broken content
+    try:
+        json.loads(content_json)
+    except Exception:
+        raise HTTPException(status_code=400, detail="content_json must be valid JSON")
 
-    # Basic validation per type
-    if type_clean == "quote":
-        if not isinstance(content_obj, dict) or "text" not in content_obj:
-            return {"error": "quote card requires content like {\"text\":\"...\",\"author\":\"...\"}"}
+    conn = get_conn()
+    cur = conn.cursor()
 
-    if type_clean == "list":
-        if not isinstance(content_obj, dict) or "items" not in content_obj or not isinstance(content_obj["items"], list):
-            return {"error": "list card requires content like {\"items\":[\"a\",\"b\"]}"}
+    created_at = datetime.utcnow().isoformat()
 
-    if type_clean == "anime_grid":
-        if not isinstance(content_obj, dict) or "items" not in content_obj or not isinstance(content_obj["items"], list):
-            return {"error": "anime_grid requires content like {\"items\":[{\"name\":\"JJK\"}]}"}
+    cur.execute("""
+        INSERT INTO cards (user_id, type, title, content_json, is_public, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (user_id, type, title, content_json, 1 if is_public else 0, created_at))
 
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.execute(
-            """
-            INSERT INTO profile_cards (user_id, type, title, content_json, created_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (payload.user_id, type_clean, payload.title.strip(), json.dumps(content_obj), now_iso())
-        )
-        conn.commit()
+    conn.commit()
+    conn.close()
 
-    return {"message": "Card created"}
+    return {"ok": True}
+
+
+@app.get("/cards/by-user")
+def get_cards_by_user(user_id: int):
+    """
+    Returns all cards for a user (dev view).
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT id, user_id, type, title, content_json, is_public, created_at
+        FROM cards
+        WHERE user_id = ?
+        ORDER BY id DESC
+    """, (user_id,))
+
+    rows = cur.fetchall()
+    conn.close()
+
+    cards = []
+    for r in rows:
+        d = dict(r)
+        d["is_public"] = bool(d["is_public"])
+        d["content"] = json.loads(d.pop("content_json"))
+        cards.append(d)
+    return cards
 
 
 @app.get("/cards")
-def list_cards(username: str):
+def get_public_cards(username: str):
     """
-    Public endpoint: list profile cards by username.
-    Used by profile.html.
+    Public profile endpoint: returns public cards by username.
+    This is what profile.html uses.
     """
     user = get_user_by_username(username)
-    if not user:
-        return {"error": "User not found"}
+    if "error" in user:
+        return []
 
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """
-            SELECT id, type, title, content_json, created_at
-            FROM profile_cards
-            WHERE user_id = ?
-            ORDER BY id DESC
-            """,
-            (user["id"],)
-        ).fetchall()
+    conn = get_conn()
+    cur = conn.cursor()
 
-        cards = []
-        for r in rows:
-            d = dict(r)
-            d["content"] = json.loads(d["content_json"])
-            del d["content_json"]
-            cards.append(d)
+    cur.execute("""
+        SELECT id, user_id, type, title, content_json, is_public, created_at
+        FROM cards
+        WHERE user_id = ? AND is_public = 1
+        ORDER BY id DESC
+    """, (user["id"],))
 
-        return cards
+    rows = cur.fetchall()
+    conn.close()
+
+    cards = []
+    for r in rows:
+        d = dict(r)
+        d["is_public"] = bool(d["is_public"])
+        d["content"] = json.loads(d.pop("content_json"))
+        cards.append(d)
+    return cards
 
 
-@app.delete("/cards")
-def delete_card(id: int):
-    with sqlite3.connect(DB_FILE) as conn:
-        conn.execute("DELETE FROM profile_cards WHERE id = ?", (id,))
-        conn.commit()
-    return {"message": "Card deleted"}
+@app.delete("/cards/delete")
+def delete_card(user_id: int, card_id: int):
+    """
+    Deletes a card owned by the user.
+    We check user_id so you can't delete other people's cards.
+    """
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("DELETE FROM cards WHERE id = ? AND user_id = ?", (card_id, user_id))
+    conn.commit()
+
+    deleted = cur.rowcount  # how many rows were removed
+    conn.close()
+
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail="Card not found (or not owned by user)")
+
+    return {"ok": True}

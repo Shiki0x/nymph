@@ -5,174 +5,180 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>NYMPH Dev UI</title>
   <style>
-    body { font-family: system-ui, Arial; background:#0b0f14; color:#e7eef7; margin:0; padding:20px; }
-    .wrap { max-width: 980px; margin: 0 auto; }
-    .row { display:flex; gap:16px; flex-wrap:wrap; }
-    .card { background:#121a24; border:1px solid #1c2a3b; border-radius:14px; padding:16px; margin: 12px 0; }
-    input, textarea, select { width:100%; padding:10px; border-radius:10px; border:1px solid #24364b; background:#0e1620; color:#e7eef7; }
-    button { padding:10px 14px; border-radius:10px; border:0; background:#2a7cff; color:white; cursor:pointer; }
-    button.secondary { background:#2a3543; }
+    body { font-family: system-ui, Arial; background:#070a0f; color:#e7eef7; margin:0; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 28px 18px 60px; }
+    h1 { margin: 0 0 8px; font-size: 34px; }
+    h2 { margin: 10px 0 6px; }
+    h3 { margin: 18px 0 6px; }
     .muted { color:#9bb0c7; font-size: 13px; }
-    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    .card { background:#101723; border:1px solid #1b2a3e; border-radius:16px; padding:16px; margin:14px 0; }
+    label { display:block; font-size: 13px; color:#cfe0f3; margin-top: 10px; }
+    input, select, textarea {
+      width: 100%; box-sizing: border-box;
+      background:#0c1220; border:1px solid #1b2a3e; color:#e7eef7;
+      border-radius: 12px; padding: 10px; margin-top: 6px;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    button {
+      margin-top: 12px;
+      background:#2a7cff; color:white; border:none;
+      padding: 10px 14px; border-radius: 12px; font-weight: 800;
+      cursor:pointer;
+    }
+    button:hover { filter: brightness(1.05); }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; border:1px solid #1b2a3e; color:#9bb0c7; font-size:12px; }
     ul { margin: 8px 0 0 18px; }
-    hr { border:0; border-top:1px solid #1c2a3b; margin:16px 0; }
-    .pill { display:inline-block; padding:4px 8px; border-radius:999px; border:1px solid #24364b; color:#9bb0c7; font-size:12px; }
+    li { margin: 6px 0; }
+    .danger { background:#ff3b3b; }
+    .mini { padding: 7px 10px; font-size: 12px; border-radius: 10px; margin-left: 8px; }
+    .codehint { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color:#9bb0c7; }
+    a { color:#9bd1ff; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>NYMPH Dev UI <span class="pill">Phase 2 Cards</span></h1>
-    <p class="muted">Local dev panel. Backend: 8000. Frontend: 5500.</p>
+    <h1>NYMPH (Dev UI)</h1>
+    <div class="muted">Local admin panel. Backend: <span class="codehint">127.0.0.1:8000</span> · Frontend: <span class="codehint">127.0.0.1:5500</span></div>
 
+    <!-- USER -->
     <div class="card">
-      <h2>1) Create / Load User</h2>
-      <div class="grid2">
-        <div>
-          <label>Username</label>
-          <input id="usernameInput" placeholder="shiki" />
-        </div>
-        <div>
-          <label>Display Name</label>
-          <input id="displayNameInput" placeholder="SHIKI" />
-        </div>
-      </div>
+      <div class="pill">Step 1</div>
+      <h2>User</h2>
+      <div class="muted">Create/update your user (required so habits/links/cards save to the right profile).</div>
+
+      <label>Username</label>
+      <input id="usernameInput" placeholder="shiki" value="shiki" />
+
+      <label>Display Name</label>
+      <input id="displayNameInput" placeholder="SHIKI" value="SHIKI" />
 
       <label>Bio</label>
-      <input id="bioInput" placeholder="Building Nymph!" />
+      <input id="bioInput" placeholder="Building NYMPH." value="Building NYMPH." />
 
-      <div style="margin-top:12px;" class="row">
-        <button onclick="createUser()">Create User</button>
-        <button class="secondary" onclick="loadUser()">Load User</button>
-      </div>
-
-      <p class="muted" id="userStatus">No user loaded yet.</p>
-      <p class="muted">Public profile link: <span id="profileLinkPreview">—</span></p>
+      <button onclick="saveUser()">Save/Update User</button>
+      <div class="muted" id="userStatus" style="margin-top:10px;"></div>
     </div>
 
+    <!-- HABITS -->
     <div class="card">
-      <h2>2) Log Habit</h2>
-      <div class="grid2">
-        <div>
-          <label>Habit</label>
-          <input id="habitInput" placeholder="gym" />
-        </div>
+      <div class="pill">Step 2</div>
+      <h2>Log Habit</h2>
+
+      <label>Habit</label>
+      <input id="habitInput" placeholder="gym" />
+
+      <div class="row">
         <div>
           <label>Category</label>
           <input id="categoryInput" placeholder="health" />
         </div>
+        <div>
+          <label>Completed</label>
+          <select id="completedInput">
+            <option value="true">true</option>
+            <option value="false" selected>false</option>
+          </select>
+        </div>
       </div>
 
       <label>Notes</label>
-      <input id="notesInput" placeholder="optional notes..." />
+      <input id="notesInput" placeholder="workout once a day" />
 
-      <label style="margin-top:10px;">Completed?</label>
-      <select id="completedInput">
-        <option value="true">true</option>
-        <option value="false">false</option>
-      </select>
+      <button onclick="logHabit()">Log Habit</button>
 
-      <div style="margin-top:12px;" class="row">
-        <button onclick="logHabit()">Log Habit</button>
-        <button class="secondary" onclick="refreshHabits()">Refresh Habits</button>
-      </div>
-
+      <h3>Recent Habits</h3>
       <ul id="habitList"></ul>
     </div>
 
+    <!-- LINKS -->
     <div class="card">
-      <h2>3) Add Profile Link</h2>
-      <div class="grid2">
-        <div>
-          <label>Label</label>
-          <input id="linkLabelInput" placeholder="GitHub" />
-        </div>
-        <div>
-          <label>URL</label>
-          <input id="linkUrlInput" placeholder="https://github.com/Shiki0x" />
-        </div>
-      </div>
+      <div class="pill">Step 3</div>
+      <h2>Add Link</h2>
 
-      <label style="margin-top:10px;">Icon</label>
-      <select id="linkIconInput">
-        <option value="auto" selected>Auto</option>
-        <option value="github">GitHub</option>
-        <option value="youtube">YouTube</option>
-        <option value="x">X</option>
-        <option value="instagram">Instagram</option>
-        <option value="tiktok">TikTok</option>
-        <option value="twitch">Twitch</option>
-        <option value="discord">Discord</option>
-        <option value="website">Website</option>
-        <option value="link">Generic</option>
-      </select>
+      <label>Label</label>
+      <input id="linkLabelInput" placeholder="GitHub" />
 
-      <div style="margin-top:12px;" class="row">
-        <button onclick="addLink()">Add Link</button>
-        <button class="secondary" onclick="refreshLinks()">Refresh Links</button>
-      </div>
+      <label>URL</label>
+      <input id="linkUrlInput" placeholder="https://github.com/Shiki0x" />
 
+      <label>Icon key (optional)</label>
+      <div class="muted">Examples: <span class="codehint">github</span>, <span class="codehint">youtube</span>, <span class="codehint">website</span></div>
+      <input id="linkIconInput" placeholder="github" />
+
+      <button onclick="addLink()">Add Link</button>
+
+      <h3>Links</h3>
       <ul id="linkList"></ul>
     </div>
 
+    <!-- CARDS -->
     <div class="card">
-      <h2>4) Create Profile Cards (NEW)</h2>
-      <p class="muted">Cards appear on profile.html. Works for Quote, List, Anime Grid.</p>
-
-      <label>Card Type</label>
-      <select id="cardTypeInput" onchange="renderCardFields()">
-        <option value="quote">Quote</option>
-        <option value="list">List</option>
-        <option value="anime_grid">Anime Grid</option>
-      </select>
-
-      <label style="margin-top:10px;">Card Title</label>
-      <input id="cardTitleInput" placeholder="Favorite Anime" />
-
-      <div id="cardFields" style="margin-top:10px;"></div>
-
-      <div style="margin-top:12px;" class="row">
-        <button onclick="createCard()">Create Card</button>
-        <button class="secondary" onclick="openProfile()">Open Public Profile</button>
+      <div class="pill">Phase 2</div>
+      <h2>Profile Cards</h2>
+      <div class="muted">
+        Cards show up on your public profile page:
+        <span class="codehint">profile.html?username=...</span>
       </div>
+
+      <div class="row">
+        <div>
+          <label>Card Type</label>
+          <select id="cardTypeInput" onchange="fillCardTemplate()">
+            <option value="quote">quote</option>
+            <option value="list">list</option>
+            <option value="anime_grid">anime_grid</option>
+            <option value="anime_tiles">anime_tiles (NEW)</option>
+            <option value="text">text</option>
+          </select>
+        </div>
+        <div>
+          <label>Card Title</label>
+          <input id="cardTitleInput" placeholder="Anime Favorites" />
+        </div>
+      </div>
+
+      <label>Card Content (JSON)</label>
+      <textarea id="cardContentInput"></textarea>
+      <div class="muted">
+        Must be valid JSON. If you’re unsure, click <b>Use Template</b>.
+      </div>
+
+      <label style="margin-top:10px;">
+        <input type="checkbox" id="cardPublicInput" checked />
+        Public (shows on profile)
+      </label>
+
+      <button onclick="addCard()">Create Card</button>
+      <button class="mini" onclick="fillCardTemplate()">Use Template</button>
+
+      <h3>Your Cards</h3>
+      <ul id="cardList"></ul>
+    </div>
+
+    <!-- SHARE -->
+    <div class="card">
+      <h2>Share</h2>
+      <div class="muted">Open your public profile (frontend server must be running).</div>
+      <div id="shareLinks" class="muted" style="margin-top:10px;"></div>
     </div>
   </div>
 
   <script>
     const API_BASE = "http://127.0.0.1:8000";
-    let currentUserId = null;
+    const FRONTEND_BASE = "http://127.0.0.1:5500";
 
-    const usernameInput = document.getElementById("usernameInput");
-    const displayNameInput = document.getElementById("displayNameInput");
-    const bioInput = document.getElementById("bioInput");
-    const userStatus = document.getElementById("userStatus");
-    const profileLinkPreview = document.getElementById("profileLinkPreview");
+    let currentUser = null;
 
-    const habitInput = document.getElementById("habitInput");
-    const categoryInput = document.getElementById("categoryInput");
-    const notesInput = document.getElementById("notesInput");
-    const completedInput = document.getElementById("completedInput");
-    const habitList = document.getElementById("habitList");
+    // -----------------------------
+    // User
+    // -----------------------------
+    async function saveUser() {
+      const username = document.getElementById("usernameInput").value.trim();
+      const displayName = document.getElementById("displayNameInput").value.trim();
+      const bio = document.getElementById("bioInput").value.trim();
 
-    const linkLabelInput = document.getElementById("linkLabelInput");
-    const linkUrlInput = document.getElementById("linkUrlInput");
-    const linkIconInput = document.getElementById("linkIconInput");
-    const linkList = document.getElementById("linkList");
-
-    const cardTypeInput = document.getElementById("cardTypeInput");
-    const cardTitleInput = document.getElementById("cardTitleInput");
-    const cardFields = document.getElementById("cardFields");
-
-    function setProfilePreview(username) {
-      profileLinkPreview.textContent =
-        `http://127.0.0.1:5500/profile.html?username=${encodeURIComponent(username)}`;
-    }
-
-    async function createUser() {
-      const username = usernameInput.value.trim();
-      const displayName = displayNameInput.value.trim();
-      const bio = bioInput.value.trim();
-
-      const url = new URL(`${API_BASE}/users`);
+      const url = new URL(`${API_BASE}/users/upsert`);
       url.searchParams.set("username", username);
       url.searchParams.set("display_name", displayName);
       url.searchParams.set("bio", bio);
@@ -181,255 +187,279 @@
       const data = await res.json();
 
       if (data.error) {
-        userStatus.textContent = `Error: ${data.error}`;
+        document.getElementById("userStatus").textContent = data.error;
         return;
       }
 
-      userStatus.textContent = `User created: ${data.username}. Now click "Load User".`;
-      setProfilePreview(username);
+      currentUser = data;
+
+      document.getElementById("userStatus").textContent =
+        `Saved user: ${data.display_name} (@${data.username}) [id=${data.id}]`;
+
+      // Share link preview
+      document.getElementById("shareLinks").innerHTML = `
+        <div>Profile:
+          <a href="${FRONTEND_BASE}/profile.html?username=${encodeURIComponent(data.username)}" target="_blank">
+            Open
+          </a>
+        </div>
+      `;
+
+      await refreshHabits();
+      await refreshLinks();
+      await refreshCards();
     }
 
-    async function loadUser() {
-      const username = usernameInput.value.trim();
-
-      const url = new URL(`${API_BASE}/users/by-username`);
-      url.searchParams.set("username", username);
-
-      const res = await fetch(url);
-      const data = await res.json();
-
-      if (data.error) {
-        userStatus.textContent = `Error: ${data.error}`;
-        currentUserId = null;
-        return;
-      }
-
-      currentUserId = data.id;
-      userStatus.textContent = `Loaded user_id=${currentUserId} (@${data.username})`;
-      setProfilePreview(data.username);
-
-      refreshHabits();
-      refreshLinks();
-    }
-
+    // -----------------------------
+    // Habits
+    // -----------------------------
     async function logHabit() {
-      if (!currentUserId) {
-        userStatus.textContent = "Load a user first.";
-        return;
-      }
+      if (!currentUser) return alert("Save/Update User first.");
 
-      const habit = habitInput.value.trim();
-      const category = categoryInput.value.trim();
-      const notes = notesInput.value.trim();
-      const completed = completedInput.value;
+      const habit = document.getElementById("habitInput").value.trim();
+      const category = document.getElementById("categoryInput").value.trim();
+      const notes = document.getElementById("notesInput").value.trim();
+      const completed = document.getElementById("completedInput").value === "true";
+
+      if (!habit) return alert("Habit cannot be empty.");
 
       const url = new URL(`${API_BASE}/log-habit`);
-      url.searchParams.set("user_id", currentUserId);
+      url.searchParams.set("user_id", currentUser.id);
       url.searchParams.set("habit", habit);
-      url.searchParams.set("category", category);
-      url.searchParams.set("notes", notes);
       url.searchParams.set("completed", completed);
+      if (category) url.searchParams.set("category", category);
+      if (notes) url.searchParams.set("notes", notes);
 
       await fetch(url, { method: "POST" });
 
-      habitInput.value = "";
-      notesInput.value = "";
-      completedInput.value = "true";
+      document.getElementById("habitInput").value = "";
+      document.getElementById("categoryInput").value = "";
+      document.getElementById("notesInput").value = "";
+      document.getElementById("completedInput").value = "false";
 
-      refreshHabits();
+      await refreshHabits();
     }
 
     async function refreshHabits() {
-      if (!currentUserId) return;
+      if (!currentUser) return;
 
-      const url = new URL(`${API_BASE}/habits`);
-      url.searchParams.set("user_id", currentUserId);
+      const res = await fetch(`${API_BASE}/habits?user_id=${currentUser.id}`);
+      const habits = await res.json();
 
-      const res = await fetch(url);
-      const data = await res.json();
+      const list = document.getElementById("habitList");
+      list.innerHTML = "";
 
-      habitList.innerHTML = "";
-      data.forEach(item => {
+      if (!habits.length) {
         const li = document.createElement("li");
-        const status = item.completed ? "✔" : "✖";
-        const cat = item.category ? ` (${item.category})` : "";
-        const note = item.notes ? ` - ${item.notes}` : "";
-        li.textContent = `${status} ${item.habit}${cat}${note}`;
-        habitList.appendChild(li);
-      });
-    }
-
-    function jsGuessIcon(url) {
-      const u = (url || "").toLowerCase();
-      if (u.includes("github.com")) return "github";
-      if (u.includes("youtube.com") || u.includes("youtu.be")) return "youtube";
-      if (u.includes("x.com") || u.includes("twitter.com")) return "x";
-      if (u.includes("instagram.com")) return "instagram";
-      if (u.includes("tiktok.com")) return "tiktok";
-      if (u.includes("twitch.tv")) return "twitch";
-      if (u.includes("discord.gg") || u.includes("discord.com")) return "discord";
-      if (u.startsWith("http://") || u.startsWith("https://")) return "website";
-      return "link";
-    }
-
-    // Little UX: if icon is still Auto, suggest a guess while typing URL
-    linkUrlInput.addEventListener("input", () => {
-      if (linkIconInput.value === "auto") {
-        const guess = jsGuessIcon(linkUrlInput.value);
-        // We don't force it, but you could if you want.
-        // For now we just leave it "auto" and backend decides.
-      }
-    });
-
-    async function addLink() {
-      if (!currentUserId) {
-        userStatus.textContent = "Load a user first.";
+        li.className = "muted";
+        li.textContent = "No habits yet.";
+        list.appendChild(li);
         return;
       }
 
-      const label = linkLabelInput.value.trim();
-      const urlValue = linkUrlInput.value.trim();
-      const icon = linkIconInput.value;
+      habits.slice(0, 8).forEach(h => {
+        const li = document.createElement("li");
+        const status = h.completed ? "✔️" : "❌";
+        const cat = h.category ? ` (${h.category})` : "";
+        const note = h.notes ? ` — ${h.notes}` : "";
+        li.textContent = `${status} ${h.habit}${cat}${note}`;
+        list.appendChild(li);
+      });
+    }
 
-      const url = new URL(`${API_BASE}/links`);
-      url.searchParams.set("user_id", currentUserId);
+    // -----------------------------
+    // Links
+    // -----------------------------
+    async function addLink() {
+      if (!currentUser) return alert("Save/Update User first.");
+
+      const label = document.getElementById("linkLabelInput").value.trim();
+      const urlValue = document.getElementById("linkUrlInput").value.trim();
+      const icon = document.getElementById("linkIconInput").value.trim() || "link";
+
+      if (!label || !urlValue) return alert("Label + URL are required.");
+
+      const url = new URL(`${API_BASE}/links/add`);
+      url.searchParams.set("user_id", currentUser.id);
       url.searchParams.set("label", label);
       url.searchParams.set("url", urlValue);
       url.searchParams.set("icon", icon);
 
-      const res = await fetch(url, { method: "POST" });
-      const data = await res.json();
+      await fetch(url, { method: "POST" });
 
-      if (data.error) {
-        alert(`Error: ${data.error}`);
-        return;
-      }
+      document.getElementById("linkLabelInput").value = "";
+      document.getElementById("linkUrlInput").value = "";
+      document.getElementById("linkIconInput").value = "";
 
-      linkLabelInput.value = "";
-      linkUrlInput.value = "";
-      linkIconInput.value = "auto";
-
-      refreshLinks();
+      await refreshLinks();
     }
 
     async function refreshLinks() {
-      if (!currentUserId) return;
+      if (!currentUser) return;
 
-      const url = new URL(`${API_BASE}/links`);
-      url.searchParams.set("user_id", currentUserId);
+      const res = await fetch(`${API_BASE}/links?user_id=${currentUser.id}`);
+      const links = await res.json();
 
-      const res = await fetch(url);
-      const data = await res.json();
+      const list = document.getElementById("linkList");
+      list.innerHTML = "";
 
-      linkList.innerHTML = "";
-      data.forEach(item => {
+      if (!links.length) {
         const li = document.createElement("li");
-        li.textContent = `${item.icon}: ${item.label} -> ${item.url}`;
-        linkList.appendChild(li);
-      });
-    }
-
-    function renderCardFields() {
-      const type = cardTypeInput.value;
-      cardFields.innerHTML = "";
-
-      if (type === "quote") {
-        cardFields.innerHTML = `
-          <label>Quote Text</label>
-          <textarea id="quoteText" rows="3" placeholder="Discipline beats motivation."></textarea>
-          <label style="margin-top:10px;">Author (optional)</label>
-          <input id="quoteAuthor" placeholder="— someone" />
-        `;
-        cardTitleInput.value = cardTitleInput.value || "Quote";
-      }
-
-      if (type === "list") {
-        cardFields.innerHTML = `
-          <label>Items (one per line)</label>
-          <textarea id="listItems" rows="5" placeholder="Gaming&#10;Hiking&#10;Singing"></textarea>
-        `;
-        cardTitleInput.value = cardTitleInput.value || "Hobbies";
-      }
-
-      if (type === "anime_grid") {
-        cardFields.innerHTML = `
-          <label>Anime (one per line). Format:</label>
-          <p class="muted">name | note (optional) | url (optional)</p>
-          <textarea id="animeItems" rows="6" placeholder="Jujutsu Kaisen | goated&#10;Attack on Titan | peak&#10;Chainsaw Man | chaotic | https://example.com"></textarea>
-        `;
-        cardTitleInput.value = cardTitleInput.value || "Anime";
-      }
-    }
-
-    renderCardFields();
-
-    async function createCard() {
-      if (!currentUserId) {
-        userStatus.textContent = "Load a user first.";
+        li.className = "muted";
+        li.textContent = "No links yet.";
+        list.appendChild(li);
         return;
       }
 
-      const type = cardTypeInput.value;
-      const title = cardTitleInput.value.trim() || "Card";
+      links.forEach(l => {
+        const li = document.createElement("li");
+        li.innerHTML = `<span class="muted">${l.icon}</span> <b>${l.label}</b> — ${l.url}`;
+        list.appendChild(li);
+      });
+    }
 
-      let contentObj = {};
+    // -----------------------------
+    // Cards
+    // -----------------------------
+    function fillCardTemplate() {
+      const type = document.getElementById("cardTypeInput").value;
 
-      // Build the card JSON based on type
+      let title = "Card";
+      let content = {};
+
       if (type === "quote") {
-        const text = document.getElementById("quoteText").value.trim();
-        const author = document.getElementById("quoteAuthor").value.trim();
-        contentObj = { text, author };
+        title = "Quote";
+        content = { text: "Discipline beats motivation.", author: "— NYMPH" };
       }
 
       if (type === "list") {
-        const raw = document.getElementById("listItems").value;
-        const items = raw.split("\n").map(s => s.trim()).filter(Boolean);
-        contentObj = { items };
+        title = "Hobbies";
+        content = { items: ["Gaming", "Hiking", "Singing"] };
       }
 
       if (type === "anime_grid") {
-        const raw = document.getElementById("animeItems").value;
-        const lines = raw.split("\n").map(s => s.trim()).filter(Boolean);
-
-        const items = lines.map(line => {
-          const parts = line.split("|").map(p => p.trim());
-          return {
-            name: parts[0] || "",
-            note: parts[1] || "",
-            url: parts[2] || ""
-          };
-        }).filter(x => x.name);
-
-        contentObj = { items };
+        title = "Anime";
+        content = { items: [{ name: "Attack on Titan", note: "Peak story", url: "https://example.com" }] };
       }
 
-      // IMPORTANT: send JSON body (this is what fixes your problem)
-      const res = await fetch(`${API_BASE}/cards`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: currentUserId,
-          type,
-          title,
-          content: contentObj
-        })
-      });
+      // ✅ NEW template for anime tiles
+      if (type === "anime_tiles") {
+        title = "Anime Favorites";
+        content = {
+          items: [
+            {
+              name: "Attack on Titan",
+              status: "Completed",
+              note: "Insane story + soundtrack",
+              link: "https://myanimelist.net/anime/16498/Shingeki_no_Kyojin"
+            },
+            {
+              name: "Jujutsu Kaisen",
+              status: "Watching",
+              note: "Gojo is HIM",
+              link: "https://myanimelist.net/anime/40748/Jujutsu_Kaisen"
+            }
+          ]
+        };
+      }
 
-      const data = await res.json();
+      if (type === "text") {
+        title = "Thought";
+        content = { text: "Building NYMPH right now." };
+      }
 
-      if (!res.ok || data.error) {
-        alert(`Error creating card: ${data.error || res.status}`);
+      document.getElementById("cardTitleInput").value = title;
+      document.getElementById("cardContentInput").value = JSON.stringify(content, null, 2);
+    }
+
+    async function addCard() {
+      if (!currentUser) return alert("Save/Update User first.");
+
+      const type = document.getElementById("cardTypeInput").value;
+      const title = document.getElementById("cardTitleInput").value.trim();
+      const contentText = document.getElementById("cardContentInput").value.trim();
+      const isPublic = document.getElementById("cardPublicInput").checked;
+
+      if (!title) return alert("Card title is required.");
+      if (!contentText) return alert("Card content is required.");
+
+      // Validate JSON before sending
+      try {
+        JSON.parse(contentText);
+      } catch {
+        return alert("Card Content is not valid JSON. Click 'Use Template' to start clean.");
+      }
+
+      const url = new URL(`${API_BASE}/cards/add`);
+      url.searchParams.set("user_id", currentUser.id);
+      url.searchParams.set("type", type);
+      url.searchParams.set("title", title);
+      url.searchParams.set("content_json", contentText);
+      url.searchParams.set("is_public", isPublic);
+
+      const res = await fetch(url, { method: "POST" });
+      if (!res.ok) {
+        const err = await res.text();
+        return alert("Failed to create card:\n" + err);
+      }
+
+      await refreshCards();
+    }
+
+    async function refreshCards() {
+      if (!currentUser) return;
+
+      const res = await fetch(`${API_BASE}/cards/by-user?user_id=${currentUser.id}`);
+      const cards = await res.json();
+
+      const list = document.getElementById("cardList");
+      list.innerHTML = "";
+
+      if (!cards.length) {
+        const li = document.createElement("li");
+        li.className = "muted";
+        li.textContent = "No cards yet. Create your first one above.";
+        list.appendChild(li);
         return;
       }
 
-      alert("Card created! Open profile.html to see it.");
+      cards.forEach(card => {
+        const li = document.createElement("li");
+        const previewRaw = JSON.stringify(card.content);
+        const preview = previewRaw.slice(0, 90) + (previewRaw.length > 90 ? "..." : "");
+
+        li.innerHTML = `
+          <b>${card.title}</b>
+          <span class="muted">(${card.type})</span>
+          <span class="muted"> public=${card.is_public}</span>
+          <span class="muted"> — ${preview}</span>
+          <button class="mini danger" onclick="deleteCard(${card.id})">Delete</button>
+        `;
+        list.appendChild(li);
+      });
     }
 
-    function openProfile() {
-      const username = usernameInput.value.trim();
-      if (!username) return;
-      window.open(`http://127.0.0.1:5500/profile.html?username=${encodeURIComponent(username)}`, "_blank");
+    async function deleteCard(cardId) {
+      if (!currentUser) return;
+
+      const ok = confirm("Delete this card?");
+      if (!ok) return;
+
+      const url = new URL(`${API_BASE}/cards/delete`);
+      url.searchParams.set("user_id", currentUser.id);
+      url.searchParams.set("card_id", cardId);
+
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.text();
+        return alert("Delete failed:\n" + err);
+      }
+
+      await refreshCards();
     }
+
+    // Start with a template so you're not staring at empty JSON
+    fillCardTemplate();
   </script>
 </body>
 </html>

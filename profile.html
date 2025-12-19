@@ -6,293 +6,272 @@
   <title>NYMPH Profile</title>
   <style>
     body { font-family: system-ui, Arial; background:#070a0f; color:#e7eef7; margin:0; }
-    .wrap { max-width: 980px; margin: 0 auto; padding: 28px 18px 60px; }
-    .hero { text-align:center; margin-top: 10px; }
-    h1 { margin: 0; font-size: 44px; letter-spacing: 0.5px; }
-    .handle { color:#9bb0c7; margin-top:6px; }
-    .bio { color:#cfe0f3; margin: 14px auto 0; max-width: 640px; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 34px 18px 60px; }
+    .header { text-align:center; margin-bottom: 18px; }
+    .name { font-size: 44px; font-weight: 900; margin: 0; }
+    .handle { color:#9bb0c7; margin-top: 6px; }
+    .bio { color:#cfe0f3; margin-top: 8px; }
 
-    .sectionTitle { margin: 18px 0 10px; font-size: 18px; color:#cfe0f3; }
-    .card { background:#101723; border:1px solid #1b2a3e; border-radius:16px; padding:16px; margin:14px 0; }
+    .card { background:#101723; border:1px solid #1b2a3e; border-radius:18px; padding:18px; margin:16px 0; }
+    .card h2 { margin: 0 0 10px; font-size: 18px; }
     .muted { color:#9bb0c7; font-size: 13px; }
 
     /* Links */
-    .linksWrap { display:flex; flex-direction:column; gap:10px; }
-    a.linkBtn {
-      display:flex; align-items:center; gap:10px;
-      padding:12px; border-radius:14px;
-      background:#0c1220; border:1px solid #1b2a3e;
-      color:#e7eef7; text-decoration:none; font-weight:700;
+    .links { display:flex; flex-direction:column; gap: 10px; }
+    .linkRow {
+      display:flex; align-items:center; gap: 10px;
+      background:#0c1220; border:1px solid #1b2a3e; border-radius:14px;
+      padding: 12px 12px;
     }
-    a.linkBtn:hover { border-color:#2a7cff; }
-    .iconBox { width: 28px; text-align:center; font-size:18px; }
+    .linkIcon { width: 22px; height: 22px; display:flex; align-items:center; justify-content:center; opacity:.9; }
+    .linkRow a { color:#e7eef7; text-decoration:none; font-weight:800; }
+    .linkRow a:hover { text-decoration:underline; }
+    .linkUrl { color:#9bb0c7; font-size: 12px; margin-left:auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width: 45%; }
 
     /* Habits */
     ul { margin: 8px 0 0 18px; }
     li { margin: 6px 0; }
 
-    /* Cards */
-    .tileGrid { display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; margin-top: 10px; }
-    .tile { background:#0c1220; border:1px solid #1b2a3e; border-radius:14px; padding:12px; }
-    .tileTitle { font-weight: 800; }
-    .tileNote { color:#9bb0c7; margin-top: 6px; font-size: 13px; }
-    .quoteText { font-size: 18px; line-height: 1.5; }
-    .quoteAuthor { margin-top: 8px; }
-
-    @media (min-width: 900px) {
-      .tileGrid { grid-template-columns: repeat(4, 1fr); }
+    /* Anime tiles */
+    .tiles {
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      margin-top: 8px;
     }
+    .tile {
+      background:#0c1220;
+      border:1px solid #1b2a3e;
+      border-radius:16px;
+      padding: 12px;
+      position:relative;
+      overflow:hidden;
+      min-height: 92px;
+      transition: transform .12s ease;
+    }
+    .tile:hover { transform: translateY(-2px); }
+    .tileTitle { font-weight: 900; margin:0 0 6px; }
+    .tileMeta { color:#9bb0c7; font-size: 12px; margin:0; }
+    .tileNote { color:#cfe0f3; font-size: 13px; margin:10px 0 0; }
+
+    .tile a {
+      color:#9bd1ff;
+      text-decoration:none;
+      font-weight:800;
+      font-size: 12px;
+    }
+    .tile a:hover { text-decoration:underline; }
+
+    /* Hover tooltip-ish */
+    .hoverInfo {
+      position:absolute;
+      inset:0;
+      background: linear-gradient(180deg, rgba(10,14,22,.1), rgba(10,14,22,.92));
+      opacity:0;
+      transition: opacity .14s ease;
+      padding: 12px;
+      display:flex;
+      flex-direction:column;
+      justify-content:flex-end;
+      gap: 8px;
+    }
+    .tile:hover .hoverInfo { opacity:1; }
+
+    footer { text-align:center; color:#567493; font-size: 12px; margin-top: 26px; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="hero">
-      <h1 id="displayName">NYMPH</h1>
-      <div class="handle" id="handle">@username</div>
-      <div class="bio" id="bio"></div>
+    <div class="header">
+      <h1 class="name" id="displayName">NYMPH</h1>
+      <div class="handle" id="handle">@user</div>
+      <div class="bio" id="bio">Loading...</div>
     </div>
 
-    <!-- LINKS -->
     <div class="card">
-      <div class="sectionTitle">Links</div>
-      <div id="linksBox" class="muted">Loading links...</div>
+      <h2>Links</h2>
+      <div class="links" id="linksBox"><div class="muted">Loading...</div></div>
     </div>
 
-    <!-- RECENT HABITS -->
     <div class="card">
-      <div class="sectionTitle">Recent Habits</div>
+      <h2>Recent Habits</h2>
       <div class="muted">Latest logs (last 8)</div>
-      <ul id="habitList"></ul>
+      <ul id="habitsBox"></ul>
     </div>
 
-    <!-- PROFILE CARDS -->
-    <div id="cards"></div>
+    <div id="cardsBox"></div>
 
-    <p class="muted" style="text-align:center;margin-top:26px;">NYMPH — personal growth profile</p>
+    <footer>NYMPH — personal growth profile</footer>
   </div>
 
   <script>
     const API_BASE = "http://127.0.0.1:8000";
 
-    const ICONS = {
-      github: "🐙",
-      youtube: "▶️",
-      x: "𝕏",
-      instagram: "📸",
-      tiktok: "🎵",
-      twitch: "🟣",
-      discord: "💬",
-      website: "🌐",
-      link: "🔗"
-    };
+    // Read username from URL: profile.html?username=shiki
+    const params = new URLSearchParams(window.location.search);
+    const username = params.get("username") || "shiki";
 
-    function getQueryParam(name) {
-      const params = new URLSearchParams(window.location.search);
-      return params.get(name);
+    // Small helper to escape text (prevents weird HTML injection)
+    function esc(s) {
+      return String(s || "").replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[m]));
     }
 
-    const username = (getQueryParam("username") || "").trim();
-
-    const displayNameEl = document.getElementById("displayName");
-    const handleEl = document.getElementById("handle");
-    const bioEl = document.getElementById("bio");
-    const linksBox = document.getElementById("linksBox");
-    const habitList = document.getElementById("habitList");
-    const cardsEl = document.getElementById("cards");
+    // Basic icon mapping (Phase 3 is "auto-detect icons")
+    function iconFor(key) {
+      const k = (key || "").toLowerCase();
+      if (k.includes("youtube")) return "▶️";
+      if (k.includes("github")) return "🌐";
+      if (k.includes("twitter") || k.includes("x")) return "𝕏";
+      if (k.includes("twitch")) return "🟣";
+      if (k.includes("discord")) return "💬";
+      return "🔗";
+    }
 
     async function loadProfile() {
-      if (!username) {
-        displayNameEl.textContent = "No username provided";
-        handleEl.textContent = "Use ?username=shiki";
-        linksBox.textContent = "";
-        return;
-      }
-
       // 1) Load user
-      const userUrl = new URL(`${API_BASE}/users/by-username`);
-      userUrl.searchParams.set("username", username);
-
-      const userRes = await fetch(userUrl);
+      const userRes = await fetch(`${API_BASE}/users/by-username?username=${encodeURIComponent(username)}`);
       const user = await userRes.json();
 
       if (user.error) {
-        displayNameEl.textContent = "User not found";
-        handleEl.textContent = `@${username}`;
-        linksBox.textContent = "";
+        document.getElementById("displayName").textContent = "User not found";
+        document.getElementById("handle").textContent = `@${username}`;
+        document.getElementById("bio").textContent = "No profile data yet.";
         return;
       }
 
-      displayNameEl.textContent = user.display_name;
-      handleEl.textContent = `@${user.username}`;
-      bioEl.textContent = user.bio || "";
+      document.getElementById("displayName").textContent = user.display_name;
+      document.getElementById("handle").textContent = `@${user.username}`;
+      document.getElementById("bio").textContent = user.bio || " ";
 
-      // 2) Load links + habits + cards in parallel
-      await Promise.all([
-        loadLinks(user.id),
-        loadHabits(user.id),
-        loadCards(user.username)
-      ]);
-    }
-
-    async function loadLinks(userId) {
-      const res = await fetch(`${API_BASE}/links?user_id=${userId}`);
-      const links = await res.json();
-
+      // 2) Load links
+      const linksRes = await fetch(`${API_BASE}/links?user_id=${user.id}`);
+      const links = await linksRes.json();
+      const linksBox = document.getElementById("linksBox");
       linksBox.innerHTML = "";
-      linksBox.classList.remove("muted");
 
-      if (!Array.isArray(links) || links.length === 0) {
-        linksBox.textContent = "No links yet.";
-        linksBox.classList.add("muted");
-        return;
+      if (!links.length) {
+        linksBox.innerHTML = `<div class="muted">No links yet.</div>`;
+      } else {
+        links.forEach(l => {
+          const div = document.createElement("div");
+          div.className = "linkRow";
+          div.innerHTML = `
+            <div class="linkIcon">${iconFor(l.icon)}</div>
+            <a href="${esc(l.url)}" target="_blank" rel="noreferrer">${esc(l.label)}</a>
+            <div class="linkUrl">${esc(l.url)}</div>
+          `;
+          linksBox.appendChild(div);
+        });
       }
 
-      const wrap = document.createElement("div");
-      wrap.className = "linksWrap";
+      // 3) Load habits
+      const habitsRes = await fetch(`${API_BASE}/habits?user_id=${user.id}`);
+      const habits = await habitsRes.json();
+      const habitsBox = document.getElementById("habitsBox");
+      habitsBox.innerHTML = "";
 
-      links.forEach(link => {
-        const a = document.createElement("a");
-        a.href = link.url;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        a.className = "linkBtn";
+      if (!habits.length) {
+        habitsBox.innerHTML = `<li class="muted">No habits yet.</li>`;
+      } else {
+        habits.slice(0, 8).forEach(h => {
+          const li = document.createElement("li");
+          const status = h.completed ? "✔️" : "❌";
+          const cat = h.category ? ` (${h.category})` : "";
+          const note = h.notes ? ` — ${h.notes}` : "";
+          li.textContent = `${status} ${h.habit}${cat}${note}`;
+          habitsBox.appendChild(li);
+        });
+      }
 
-        const iconKey = (link.icon || "link").toLowerCase();
-        const icon = ICONS[iconKey] || "🔗";
-
-        a.innerHTML = `
-          <div class="iconBox">${icon}</div>
-          <div>${link.label}</div>
-        `;
-
-        wrap.appendChild(a);
-      });
-
-      linksBox.appendChild(wrap);
+      // 4) Load public cards
+      const cardsRes = await fetch(`${API_BASE}/cards?username=${encodeURIComponent(username)}`);
+      const cards = await cardsRes.json();
+      renderCards(cards);
     }
 
-    async function loadHabits(userId) {
-      const res = await fetch(`${API_BASE}/habits?user_id=${userId}`);
-      const habits = await res.json();
+    function renderCards(cards) {
+      const box = document.getElementById("cardsBox");
+      box.innerHTML = "";
 
-      habitList.innerHTML = "";
-
-      if (!Array.isArray(habits) || habits.length === 0) {
-        const li = document.createElement("li");
-        li.className = "muted";
-        li.textContent = "No habits logged yet.";
-        habitList.appendChild(li);
-        return;
-      }
-
-      habits.slice(0, 8).forEach(h => {
-        const li = document.createElement("li");
-        const status = h.completed ? "✔️" : "❌";
-        const cat = h.category ? ` (${h.category})` : "";
-        const note = h.notes ? ` — ${h.notes}` : "";
-        li.textContent = `${status} ${h.habit}${cat}${note}`;
-        habitList.appendChild(li);
-      });
-    }
-
-    async function loadCards(username) {
-      const cardsUrl = new URL(`${API_BASE}/cards`);
-      cardsUrl.searchParams.set("username", username);
-
-      const res = await fetch(cardsUrl);
-      const cards = await res.json();
-
-      cardsEl.innerHTML = "";
-
-      if (!Array.isArray(cards) || cards.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "card";
-        empty.innerHTML = `<div class="sectionTitle">Cards</div><div class="muted">No cards yet.</div>`;
-        cardsEl.appendChild(empty);
-        return;
-      }
+      if (!cards.length) return;
 
       cards.forEach(card => {
-        const box = document.createElement("div");
-        box.className = "card";
+        // Each card becomes a section on the profile page
+        const section = document.createElement("div");
+        section.className = "card";
 
-        const title = document.createElement("div");
-        title.className = "sectionTitle";
-        title.textContent = card.title;
-        box.appendChild(title);
+        const title = esc(card.title);
+        section.innerHTML = `<h2>${title}</h2>`;
 
-        // Quote card
+        // Choose renderer based on type
         if (card.type === "quote") {
-          const text = document.createElement("div");
-          text.className = "quoteText";
-          text.textContent = `“${card.content.text || ""}”`;
-          box.appendChild(text);
-
-          if (card.content.author) {
-            const author = document.createElement("div");
-            author.className = "muted quoteAuthor";
-            author.textContent = card.content.author;
-            box.appendChild(author);
-          }
+          const text = esc(card.content?.text);
+          const author = esc(card.content?.author);
+          section.innerHTML += `
+            <div style="font-size:16px; font-weight:800; margin-top:6px;">“${text}”</div>
+            <div class="muted" style="margin-top:8px;">${author}</div>
+          `;
         }
 
-        // List card
-        if (card.type === "list") {
+        else if (card.type === "list") {
+          const items = card.content?.items || [];
           const ul = document.createElement("ul");
-          (card.content.items || []).forEach(item => {
+          items.forEach(i => {
             const li = document.createElement("li");
-            li.textContent = item;
+            li.textContent = i;
             ul.appendChild(li);
           });
-          box.appendChild(ul);
+          section.appendChild(ul);
         }
 
-        // Anime grid
-        if (card.type === "anime_grid") {
-          const grid = document.createElement("div");
-          grid.className = "tileGrid";
+        else if (card.type === "text") {
+          const text = esc(card.content?.text);
+          section.innerHTML += `<div style="margin-top:6px;">${text}</div>`;
+        }
 
-          (card.content.items || []).forEach(item => {
+        // ✅ NEW: anime_tiles
+        else if (card.type === "anime_tiles") {
+          // Expected content shape:
+          // { "items": [ { "name": "Attack on Titan", "note": "...", "link": "https://..." , "status": "Watching" } ] }
+          const items = card.content?.items || [];
+
+          const grid = document.createElement("div");
+          grid.className = "tiles";
+
+          items.forEach(item => {
             const tile = document.createElement("div");
             tile.className = "tile";
 
-            const t = document.createElement("div");
-            t.className = "tileTitle";
-            t.textContent = item.name || "Untitled";
-            tile.appendChild(t);
+            const name = esc(item.name);
+            const note = esc(item.note);
+            const status = esc(item.status);
+            const link = item.link ? esc(item.link) : "";
 
-            if (item.note) {
-              const n = document.createElement("div");
-              n.className = "tileNote";
-              n.textContent = item.note;
-              tile.appendChild(n);
-            }
+            tile.innerHTML = `
+              <div class="tileTitle">${name}</div>
+              <div class="tileMeta">${status ? status : "Anime"}</div>
 
-            if (item.url) {
-              const a = document.createElement("a");
-              a.href = item.url;
-              a.target = "_blank";
-              a.rel = "noopener noreferrer";
-              a.style.display = "inline-block";
-              a.style.marginTop = "10px";
-              a.textContent = "Link";
-              tile.appendChild(a);
-            }
+              <div class="hoverInfo">
+                ${note ? `<div class="tileNote">${note}</div>` : `<div class="muted">No note.</div>`}
+                ${link ? `<div><a href="${link}" target="_blank" rel="noreferrer">Open link</a></div>` : ""}
+              </div>
+            `;
 
             grid.appendChild(tile);
           });
 
-          box.appendChild(grid);
+          section.appendChild(grid);
+          section.innerHTML += `<div class="muted" style="margin-top:10px;">Hover a tile for details.</div>`;
         }
 
-        // Unknown type fallback
-        if (!["quote", "list", "anime_grid"].includes(card.type)) {
-          const pre = document.createElement("pre");
-          pre.textContent = JSON.stringify(card.content, null, 2);
-          box.appendChild(pre);
+        // Fallback: if a type exists but we haven’t coded it yet
+        else {
+          section.innerHTML += `<div class="muted">Unknown card type: ${esc(card.type)}</div>`;
         }
 
-        cardsEl.appendChild(box);
+        box.appendChild(section);
       });
     }
 
